@@ -1,37 +1,22 @@
-# Copyright 2026 Rob Cooke
-# Originally designed and authored as part of CoreDRP by Rob Cooke.
-# SPDX-License-Identifier: Apache-2.0
 name: CoreDRP draft checks
-
-on:
-  push:
-  pull_request:
-
-permissions:
-  contents: read
-
+on: [push, pull_request]
+permissions: { contents: read }
 jobs:
   validate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install protoc
-        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
-
-      - name: Compile protobuf contracts
-        run: |
-          mkdir -p .build
-          protoc \
-            -I . \
-            --descriptor_set_out=.build/coredrp.pb \
-            --include_imports \
-            protocol/coredrp-v1.proto \
-            profiles/mining/coredrp-mining-v1.proto \
-            profiles/miningcore/coredrp-miningcore-v1.proto
-
-      - name: Verify core hashing test vectors
-        run: python3 tools/verify_test_vectors.py
-
-      - name: Verify profile dependency boundaries
-        run: python3 tools/check_layer_boundaries.py
+      - run: python3 tools/check_spec_integrity.py
+      - run: python3 tools/check_layer_boundaries.py
+      - run: python3 tools/check_error_registry.py
+      - run: python3 tools/check_event_registry.py
+      - run: python3 tools/check_wire_compatibility.py
+      - run: python3 tools/verify_test_vectors.py
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler && python3 -m pip install protobuf
+      - run: mkdir -p .build && protoc -I . --descriptor_set_out=.build/coredrp.pb --include_imports --include_source_info protocol/coredrp-v1.proto profiles/mining/coredrp-mining-v1.proto profiles/miningcore/coredrp-miningcore-v1.proto
+      - run: python3 tools/verify_profile_vectors.py
+      - uses: bufbuild/buf-setup-action@v1
+      - run: buf lint
+      - uses: actions/setup-dotnet@v4
+        with: { dotnet-version: '8.0.x' }
+      - run: dotnet run --project tools/csharp-vector-check/CoreDRP.VectorCheck.csproj --configuration Release
