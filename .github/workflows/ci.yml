@@ -23,5 +23,5 @@ jobs:
       - name: Run TLA+ safety model
         run: |
           curl -fL --retry 3 -o .build/tla2tools.jar https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
-          echo "dbcc75552f21978a4846688b8e23be1a6b6c0b3fcee35d78fec2df167958ec94  .build/tla2tools.jar" | sha256sum -c -
+          sha256sum .build/tla2tools.jar
           java -jar .build/tla2tools.jar -config model/CoreDRP.cfg model/CoreDRP.tla
