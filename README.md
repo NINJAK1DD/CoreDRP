@@ -9,19 +9,21 @@ Originally developed for the Miningcore project.
 
 CoreDRP is a durable, authenticated, replayable event-relay protocol with a domain-independent Core, reusable Mining Profile, and Miningcore Integration Profile.
 
-The current working specification is **Draft 0.2**, a hardening revision incorporating two independent adversarial reviews of the public v0.1 repository.
+The current working specification is **Draft 0.3**, incorporating four independent adversarial passes over the public Draft 0.1 and Draft 0.2 repository state.
 
 Start with [`docs/CoreDRP-1-SPEC.md`](docs/CoreDRP-1-SPEC.md).
 
 ## Core guarantees
 
-- sender-side durable admission before application success;
+- sender-side durable admission before application success, with retry-safe local admission identity;
 - at-least-once replay with cumulative ACK only after durable receiver commit;
-- epoch-scoped per-event cryptographic history;
+- epoch-scoped per-event cryptographic history with temporal/completeness floors inherited across epochs;
 - deterministic reconnect/rollback/split-log handling;
-- explicit quarantine without laundering completeness gaps;
+- sender and receiver single-writer fencing;
+- explicit quarantine without rewriting immutable admitted events or laundering completeness gaps;
 - clock-bounded completeness checkpoints;
-- Mining `PayoutSafe` and `SafePruneThrough` semantics;
+- fail-closed Mining membership, `PayoutSafe` and `SafePruneThrough` semantics;
+- deterministic cross-sender mining accounting order;
 - local mining `submitblock` never waits on the recorder.
 
 ## Layering
@@ -34,7 +36,7 @@ Mining Profile
 Miningcore Integration
 ```
 
-CI enforces this dependency direction and checks specification integrity, protobuf compilation/lint, wire compatibility, registries, cryptographic vectors, C# vectors, and profile-aware payload vectors.
+CI enforces this dependency direction and checks specification integrity, the complete protobuf wire surface, registries, cryptographic/contract/ADMIN vectors, state-machine vectors, profile and Bitcoin evidence semantics, independent C# vectors, protobuf compilation/linting, and positive plus deliberately-negative TLA+ model checks.
 
 ## Licensing and attribution
 
