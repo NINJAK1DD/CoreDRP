@@ -20,3 +20,8 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '8.0.x' }
       - run: dotnet run --project tools/csharp-vector-check/CoreDRP.VectorCheck.csproj --configuration Release
+      - name: Run TLA+ safety model
+        run: |
+          curl -fL --retry 3 -o .build/tla2tools.jar https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
+          echo "dbcc75552f21978a4846688b8e23be1a6b6c0b3fcee35d78fec2df167958ec94  .build/tla2tools.jar" | sha256sum -c -
+          java -jar .build/tla2tools.jar -config model/CoreDRP.cfg model/CoreDRP.tla
