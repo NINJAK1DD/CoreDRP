@@ -1,0 +1,45 @@
+// Copyright 2026 Rob Cooke
+// Originally designed and authored as part of CoreDRP by Rob Cooke.
+// SPDX-License-Identifier: Apache-2.0
+
+syntax = "proto3";
+
+package coredrp.mining.v1;
+
+option csharp_namespace = "CoreDRP.Mining.V1";
+
+import "protocol/coredrp-v1.proto";
+
+// CoreDRP/1 event-type allocation for Mining Profile v1:
+//   0x0100 = MiningShareEvent
+//
+// Core event type 0x0001 (Completeness Checkpoint) is interpreted by this
+// profile as PayoutFence on lane 0 and CriticalCheckpoint on lane 1.
+
+message MiningShareEvent {
+  uint64 block_height = 1;
+
+  // Application-defined miner/account identity.
+  string miner = 2;
+  string worker = 3;
+  string user_agent = 4;
+
+  double difficulty = 5;
+  double achieved_share_difficulty = 6;
+  double actual_difficulty = 7;
+  double network_difficulty = 8;
+
+  string source_ip = 9;
+  string source = 10;
+  string session_id = 11;
+
+  // MUST equal the enclosing Core Event.event_time_unix_ms.
+  int64 created_unix_ms = 12;
+}
+
+message TemporalSenderMembership {
+  bytes sender_id = 1;
+  bytes scope = 2;
+  int64 valid_from_unix_ms = 3;
+  optional int64 valid_until_unix_ms = 4;
+}

@@ -1,0 +1,20 @@
+# Generated protobuf/build output
+bin/
+obj/
+*.user
+*.suo
+*.cache
+*.tmp
+*.log
+
+# Python
+__pycache__/
+*.pyc
+
+# IDE/editor
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

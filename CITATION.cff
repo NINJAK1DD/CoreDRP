@@ -1,0 +1,19 @@
+cff-version: 1.2.0
+message: "If you use or discuss CoreDRP, please cite the protocol and its original author."
+title: "CoreDRP — Core Durable Relay Protocol"
+type: software
+authors:
+  - family-names: "Cooke"
+    given-names: "Rob"
+version: "0.1-draft"
+date-released: 2026-09-04
+repository-code: "https://github.com/NINJAK1DD/CoreDRP"
+url: "https://coredrp.org"
+abstract: "A durable, authenticated, replayable event-relay protocol with reusable mining and Miningcore integration profiles."
+keywords:
+  - durable relay
+  - distributed systems
+  - gRPC
+  - protobuf
+  - mining
+  - Miningcore

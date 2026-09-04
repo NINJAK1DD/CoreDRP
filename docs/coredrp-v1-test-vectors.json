@@ -1,0 +1,52 @@
+{
+  "format": "CoreDRP/1 draft v0.1 core hashing test vectors",
+  "note": "These vectors cover Core hash primitives only. Monetary/profile vectors remain pending v0.2 field/grammar freeze.",
+  "sender_id": "018f5d5e-7b4a-7c01-8a2c-0123456789ab",
+  "sender_id_rfc4122_bytes_hex": "018f5d5e7b4a7c018a2c0123456789ab",
+  "log_epoch": "0190a1b2-c3d4-7e5f-9012-abcdef012345",
+  "log_epoch_rfc4122_bytes_hex": "0190a1b2c3d47e5f9012abcdef012345",
+  "lane_id": 0,
+  "domain_tags_ascii": {
+    "payload": "CoreDRP1-PAYLOAD",
+    "event": "CoreDRP1-EVENT",
+    "genesis": "CoreDRP1-GENESIS",
+    "admin": "CoreDRP1-ADMIN"
+  },
+  "genesis_chain_sha256": "e70191289779df01988ed16841475b04cf76f98cdbb99a73866ecef92a91a5ad",
+  "events": [
+    {
+      "sequence": 1,
+      "event_type": "0x0100",
+      "scope_hex": "62746331",
+      "event_time_unix_ms": 1788541200000,
+      "payload_hex": "088008120474657374",
+      "payload_hash_sha256": "2d068784adda6a5c5f13de52c5e4f3a2c69560ccf7f56dab76ff75d73d0bf55d",
+      "chain_hash_sha256": "6c6e33a642a38869a8d9fdbabac51e86e84df5bce7a33b262c171136db36dc4a"
+    },
+    {
+      "sequence": 2,
+      "event_type": "0x0001",
+      "scope_hex": "62746331",
+      "event_time_unix_ms": 1788541205000,
+      "payload_hex": "0888a7efed8634",
+      "payload_hash_sha256": "6ba5d613ae4e1b64fddfaa723eaceb6e44f790c71266bc536333270813b118a5",
+      "chain_hash_sha256": "bf76df446a4b37b459630cecdb071cd903fdfe036facbe9b8b66aae3bbe811b0"
+    },
+    {
+      "sequence": 3,
+      "event_type": "0x0100",
+      "scope_hex": "73636f70652dceb1",
+      "event_time_unix_ms": 1788541206000,
+      "payload_hex": "000102436f7265445250",
+      "payload_hash_sha256": "e17626318ac34b51b5c19adac0b36e377ffc5964b4a23c1c1fad50844ebdfae1",
+      "chain_hash_sha256": "9a9cfa8ac7c58704fdab481ce3fde2f6d578beb85226aac129f1b9e712ad9701"
+    }
+  ],
+  "batch_terminal_chain_hash_sha256": "9a9cfa8ac7c58704fdab481ce3fde2f6d578beb85226aac129f1b9e712ad9701",
+  "metadata": {
+    "copyright": "Copyright © 2026 Rob Cooke",
+    "original_author": "Rob Cooke",
+    "license": "Apache-2.0",
+    "project": "CoreDRP — Core Durable Relay Protocol"
+  }
+}
