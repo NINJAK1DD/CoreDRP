@@ -16,72 +16,65 @@ message ClientFrame {
   oneof body {
     ClientHello hello = 1;
     EventBatch batch = 2;
-    Heartbeat heartbeat = 3;
+    ClientHeartbeat heartbeat = 3;
     ClockProbeResponse clock_probe_response = 4;
     ChainProbeResponse chain_probe_response = 5;
+    Goodbye goodbye = 6;
   }
+  reserved 7 to 15;
 }
 
 message ServerFrame {
   oneof body {
     ServerHello hello = 1;
     Ack ack = 2;
-    FatalError fatal = 3;
+    ProtocolError error = 3;
     WindowUpdate window_update = 4;
-    Heartbeat heartbeat = 5;
+    ServerHeartbeat heartbeat = 5;
     ClockProbeRequest clock_probe_request = 6;
     ChainProbeRequest chain_probe_request = 7;
+    Goodbye goodbye = 8;
   }
+  reserved 9 to 15;
 }
 
 message ClientHello {
   uint32 protocol_major = 1;
   uint32 protocol_minor = 2;
-
-  // 16 bytes, RFC 4122 network/textual octet order.
   bytes sender_id = 3;
-
-  // uint8 semantic range 0..255.
   uint32 lane_id = 4;
-
-  // 16 bytes, RFC 4122 network/textual octet order.
   bytes log_epoch = 5;
-
-  int64 earliest_retained_sequence = 6;
-  int64 durable_tail_sequence = 7;
-  int64 remembered_ack_sequence = 8;
-
-  // 32 bytes. Empty only when no receiver ACK has ever been remembered.
-  bytes remembered_ack_chain_hash = 9;
-
+  uint64 earliest_retained_sequence = 6;
+  uint64 durable_tail_sequence = 7;
+  optional uint64 remembered_ack_sequence = 8;
+  optional bytes remembered_ack_chain_hash = 9;
   repeated ProfileSupport profiles = 10;
   repeated uint32 supported_event_types = 11;
-
   string implementation_name = 12;
   string implementation_version = 13;
   string implementation_source_revision = 14;
+  optional bytes remembered_contract_binding_digest = 15;
+  repeated ScopeContractSupport scope_contracts = 16;
+  reserved 17 to 31;
 }
 
 message ServerHello {
   uint32 protocol_major = 1;
   uint32 protocol_minor = 2;
-
-  // 16-byte receiver identity.
   bytes receiver_id = 3;
-
-  // 16-byte database epoch.
   bytes receiver_database_epoch = 4;
-
-  int64 committed_sequence = 5;
+  uint64 committed_sequence = 5;
   bytes committed_chain_hash = 6;
-
   repeated ProfileSelection profiles = 7;
   repeated uint32 accepted_event_types = 8;
-
   uint32 max_event_payload_bytes = 9;
   uint32 max_batch_payload_bytes = 10;
   uint32 window_events = 11;
   uint64 window_bytes = 12;
+  bytes contract_binding_digest = 13;
+  uint32 max_batch_events = 14;
+  repeated ScopeContractSelection scope_contracts = 15;
+  reserved 16 to 31;
 }
 
 message ProfileSupport {
@@ -90,127 +83,73 @@ message ProfileSupport {
   uint32 profile_minor = 3;
   uint32 minimum_core_major = 4;
   uint32 minimum_core_minor = 5;
-
-  // Optional profile-owned semantic contract digest.
-  bytes semantic_contract_digest = 6;
+  optional bytes semantic_contract_digest = 6;
+  reserved 7 to 15;
 }
 
 message ProfileSelection {
   string profile_id = 1;
   uint32 profile_major = 2;
   uint32 profile_minor = 3;
-  bytes semantic_contract_digest = 4;
+  optional bytes semantic_contract_digest = 4;
+  reserved 5 to 15;
 }
 
-message EventBatch {
-  int64 first_sequence = 1;
-  repeated Event events = 2;
+message ScopeContractSupport { bytes scope = 1; string profile_id = 2; bytes semantic_contract_digest = 3; reserved 4 to 15; }
+message ScopeContractSelection { bytes scope = 1; string profile_id = 2; bytes semantic_contract_digest = 3; reserved 4 to 15; }
 
-  // 32-byte chain hash at the final event of this batch.
+message EventBatch {
+  uint64 first_sequence = 1;
+  repeated Event events = 2;
   bytes terminal_chain_hash = 3;
+  reserved 4 to 15;
 }
 
 message Event {
-  // Must equal first_sequence + zero-based event index.
-  int64 sequence = 1;
-
-  // CoreDRP/1 uses a 16-bit semantic range.
+  uint64 sequence = 1;
   uint32 event_type = 2;
-
-  // Opaque Core scope bytes.
   bytes scope = 3;
-
-  // UTC milliseconds since Unix epoch.
   int64 event_time_unix_ms = 4;
-
-  // Exact profile payload bytes. These exact bytes participate in hashing.
   bytes payload = 5;
+  bytes relay_event_id = 6;
+  reserved 7 to 15;
 }
 
+message CompletenessCheckpoint { int64 complete_through_unix_ms = 1; reserved 2 to 15; }
 
-message CompletenessCheckpoint {
-  // Trusted completeness boundary in UTC milliseconds since Unix epoch.
-  // The enclosing Event.event_time_unix_ms MUST equal this value.
-  int64 complete_through_unix_ms = 1;
-}
+enum CoreEventType { CORE_EVENT_TYPE_UNSPECIFIED = 0; CORE_EVENT_TYPE_COMPLETENESS_CHECKPOINT = 1; }
 
-message Ack {
-  int64 committed_through_sequence = 1;
+message Ack { uint64 committed_through_sequence = 1; bytes committed_chain_hash = 2; int64 committed_at_unix_ms = 3; reserved 4 to 15; }
 
-  // 32 bytes: chain[committed_through_sequence].
-  bytes committed_chain_hash = 2;
+message ProtocolError { ErrorCode code = 1; ErrorDisposition disposition = 2; string message = 3; optional uint64 sequence = 4; reserved 5 to 15; }
 
-  int64 committed_at_unix_ms = 3;
-}
-
-message FatalError {
-  ErrorCode code = 1;
-  string message = 2;
-
-  // Sequence associated with the failure when applicable.
-  int64 sequence = 3;
+enum ErrorDisposition {
+  ERROR_DISPOSITION_UNSPECIFIED = 0;
+  ERROR_DISPOSITION_STREAM_RETRYABLE = 1;
+  ERROR_DISPOSITION_OPERATOR_INTERVENTION = 2;
+  ERROR_DISPOSITION_PERMANENT_CONFIGURATION = 3;
+  ERROR_DISPOSITION_EVENT_QUARANTINABLE = 4;
 }
 
 enum ErrorCode {
   ERROR_CODE_UNSPECIFIED = 0;
-
-  PROTOCOL_VERSION_MISMATCH = 1;
-  INVALID_HANDSHAKE = 2;
-  UNAUTHORIZED_SENDER = 3;
-  UNAUTHORIZED_SCOPE = 4;
-  UNKNOWN_EVENT_TYPE = 5;
-  UNADVERTISED_EVENT_TYPE = 6;
-  EVENT_VALIDATOR_UNAVAILABLE = 7;
-  SEQUENCE_GAP = 8;
-  CHAIN_MISMATCH = 9;
-  SPLIT_LOG = 10;
-  SENDER_ROLLBACK = 11;
-  RECOVERY_GAP = 12;
-  EPOCH_NOT_APPROVED = 13;
-  EVENT_TOO_LARGE = 14;
-  SEMANTIC_CONTRACT_MISMATCH = 15;
-  RECEIVER_DURABILITY_UNAVAILABLE = 16;
-  CLOCK_CONTRACT_VIOLATION = 17;
+  PROTOCOL_VERSION_MISMATCH = 1; INVALID_HANDSHAKE = 2; UNAUTHORIZED_SENDER = 3; UNAUTHORIZED_SCOPE = 4;
+  UNKNOWN_EVENT_TYPE = 5; UNADVERTISED_EVENT_TYPE = 6; EVENT_VALIDATOR_UNAVAILABLE = 7; SEQUENCE_GAP = 8;
+  CHAIN_MISMATCH = 9; SPLIT_LOG = 10; SENDER_ROLLBACK = 11; RECOVERY_GAP = 12; EPOCH_NOT_APPROVED = 13;
+  EVENT_TOO_LARGE = 14; SEMANTIC_CONTRACT_MISMATCH = 15; RECEIVER_DURABILITY_UNAVAILABLE = 16;
+  CLOCK_CONTRACT_VIOLATION = 17; MALFORMED_FRAME = 18; EVENT_TYPE_OUT_OF_RANGE = 19; LANE_ID_OUT_OF_RANGE = 20;
+  SEQUENCE_OUT_OF_RANGE = 21; RESOURCE_LIMIT_EXCEEDED = 22; CONTRACT_BINDING_CHANGED = 23; RECEIVER_ROLLBACK = 24;
+  RECEIVER_INCARNATION_CHANGED = 25; STREAM_ALREADY_ACTIVE = 26; SEMANTIC_PAYLOAD_INVALID = 27;
+  CHECKPOINT_BACKDATED_EVENT = 28; ADMIN_ACTION_CONFLICT = 29; IDEMPOTENCY_KEY_CONFLICT = 30; INVALID_STATE_TRANSITION = 31;
+  reserved 32 to 63;
 }
 
-message WindowUpdate {
-  uint32 window_events = 1;
-  uint64 window_bytes = 2;
-}
-
-message Heartbeat {
-  int64 sent_at_unix_ms = 1;
-  int64 durable_tail_sequence = 2;
-  int64 oldest_retained_sequence = 3;
-  uint64 spool_bytes = 4;
-}
-
-message ClockProbeRequest {
-  uint64 probe_id = 1;
-
-  // Receiver transmit time t1.
-  int64 receiver_send_unix_ms = 2;
-}
-
-message ClockProbeResponse {
-  uint64 probe_id = 1;
-
-  // Echoed t1.
-  int64 receiver_send_unix_ms = 2;
-
-  // Sender receive t2.
-  int64 sender_receive_unix_ms = 3;
-
-  // Sender transmit t3.
-  int64 sender_send_unix_ms = 4;
-}
-
-message ChainProbeRequest {
-  int64 first_sequence = 1;
-  uint32 count = 2;
-}
-
-message ChainProbeResponse {
-  int64 first_sequence = 1;
-  repeated bytes chain_hashes = 2;
-}
+message WindowUpdate { uint32 window_events = 1; uint64 window_bytes = 2; reserved 3 to 15; }
+message ClientHeartbeat { int64 sent_at_unix_ms = 1; uint64 durable_tail_sequence = 2; uint64 oldest_retained_sequence = 3; uint64 spool_bytes = 4; reserved 5 to 15; }
+message ServerHeartbeat { int64 sent_at_unix_ms = 1; uint64 committed_sequence = 2; reserved 3 to 15; }
+message ClockProbeRequest { uint64 probe_id = 1; int64 receiver_send_unix_ms = 2; reserved 3 to 15; }
+message ClockProbeResponse { uint64 probe_id = 1; int64 receiver_send_unix_ms = 2; int64 sender_receive_unix_ms = 3; int64 sender_send_unix_ms = 4; reserved 5 to 15; }
+message ChainProbeRequest { uint64 first_sequence = 1; uint32 count = 2; reserved 3 to 15; }
+message ChainProbeResponse { uint64 first_sequence = 1; repeated bytes chain_hashes = 2; reserved 3 to 15; }
+message Goodbye { GoodbyeReason reason = 1; string message = 2; reserved 3 to 15; }
+enum GoodbyeReason { GOODBYE_REASON_UNSPECIFIED = 0; GOODBYE_REASON_GRACEFUL_SHUTDOWN = 1; GOODBYE_REASON_DRAINING = 2; GOODBYE_REASON_MAINTENANCE = 3; }

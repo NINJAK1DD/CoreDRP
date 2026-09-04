@@ -1,45 +1,23 @@
 // Copyright 2026 Rob Cooke
-// Originally designed and authored as part of CoreDRP by Rob Cooke.
 // SPDX-License-Identifier: Apache-2.0
-
 syntax = "proto3";
-
 package coredrp.mining.v1;
-
 option csharp_namespace = "CoreDRP.Mining.V1";
-
 import "protocol/coredrp-v1.proto";
 
-// CoreDRP/1 event-type allocation for Mining Profile v1:
-//   0x0100 = MiningShareEvent
-//
-// Core event type 0x0001 (Completeness Checkpoint) is interpreted by this
-// profile as PayoutFence on lane 0 and CriticalCheckpoint on lane 1.
-
+message Decimal38Scale24 { string canonical = 1; reserved 2 to 15; }
 message MiningShareEvent {
   uint64 block_height = 1;
-
-  // Application-defined miner/account identity.
-  string miner = 2;
-  string worker = 3;
-  string user_agent = 4;
-
-  double difficulty = 5;
-  double achieved_share_difficulty = 6;
-  double actual_difficulty = 7;
-  double network_difficulty = 8;
-
-  string source_ip = 9;
-  string source = 10;
-  string session_id = 11;
-
-  // MUST equal the enclosing Core Event.event_time_unix_ms.
+  string miner = 2; string worker = 3; string user_agent = 4;
+  double difficulty = 5; double achieved_share_difficulty = 6; double actual_difficulty = 7; double network_difficulty = 8;
+  string source_ip = 9; string source = 10; string session_id = 11;
   int64 created_unix_ms = 12;
+  bool is_block_candidate = 13;
+  optional bytes candidate_hash = 14;
+  optional string candidate_kind = 15;
+  optional string transaction_confirmation_data = 16;
+  optional Decimal38Scale24 block_reward = 17;
+  reserved 18 to 31;
 }
-
-message TemporalSenderMembership {
-  bytes sender_id = 1;
-  bytes scope = 2;
-  int64 valid_from_unix_ms = 3;
-  optional int64 valid_until_unix_ms = 4;
-}
+message TemporalSenderMembership { bytes sender_id = 1; bytes scope = 2; int64 valid_from_unix_ms = 3; optional int64 valid_until_unix_ms = 4; reserved 5 to 15; }
+enum MiningEventType { MINING_EVENT_TYPE_UNSPECIFIED = 0; MINING_EVENT_TYPE_SHARE = 256; }
