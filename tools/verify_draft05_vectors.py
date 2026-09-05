@@ -4,6 +4,8 @@ import hashlib,json,struct
 R=Path(__file__).resolve().parents[1];D=json.loads((R/'docs/coredrp-v1-draft05-vectors.json').read_text())
 u16=lambda n:struct.pack('>H',n);u32=lambda n:struct.pack('>I',n)
 a=D['admission_digest'];scope=bytes.fromhex(a['scope_hex']);req=bytes.fromhex(a['canonical_request_hex']);pre=b'CoreDRP1-ADMISSION'+bytes([a['lane']])+u16(int(a['event_type'],16))+u16(len(scope))+scope+u32(len(req))+req;assert pre.hex()==a['preimage_hex'];assert hashlib.sha256(pre).hexdigest()==a['sha256']
+for obj in D['semantic_contracts'].values():
+ src=bytes.fromhex(obj['source_hex']);assert hashlib.sha256(src).hexdigest()==obj['sha256']
 def negotiate(x):
  common=set(tuple(r) for r in x['sender']) & set(tuple(r) for r in x['receiver']);eligible=[r for r in common if (r[2],r[3]) <= (x['core_major'],x['core_minor'])]
  if not eligible:return None
@@ -11,6 +13,10 @@ def negotiate(x):
 for x in D['profile_negotiation_cases']:assert negotiate(x)==x['expected'],x
 for x in D['admin_order_cases']:
  strictly=all(a<b for a,b in zip(x['field_ids'],x['field_ids'][1:]));width_ok=not x.get('uint64_field_id') or x['widths'][x['field_ids'].index(x['uint64_field_id'])]==8;got='ACCEPT' if strictly and width_ok else 'REJECT';assert got==x['expected'],x
+seen_actions=set()
+for x in D['admin_action_cases']:
+ assert x['action_type'] not in seen_actions;seen_actions.add(x['action_type']);assert all(a<b for a,b in zip(x['field_ids'],x['field_ids'][1:]));assert x['expected']=='ACCEPT'
+assert {4,5,6,7}.issubset(seen_actions)
 for x in D['scope_digest_cases']:
  try:x['profile_id'].encode('ascii');ascii_ok=True
  except UnicodeEncodeError:ascii_ok=False
