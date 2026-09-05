@@ -117,7 +117,31 @@ Before sequence/time/relay-ID allocation, sender hashes **profile-defined caller
 
 `admission_digest = SHA256(ADMISSION_DOMAIN || uint8(lane) || uint16_be(type) || uint16_be(scope_len) || scope || uint32_be(request_len) || canonical_request_bytes)`.
 
-For MiningShareEvent, canonical request bytes encode the stable caller-provided share fields in field-number order and explicitly exclude generated `created_unix_ms`, sequence, epoch sequence and relay UUID. The sender resolves permanent tombstone first; same key+digest returns original admission forever, same key+different digest is `IDEMPOTENCY_KEY_CONFLICT`. Financial Mining callers MUST NOT be able to mint a second event by waiting for tombstone expiry.
+For MiningShareEvent Profile 1.1, canonical caller-request encoding version 1 is frozen as follows. All strings are exact UTF-8 bytes with no normalization and are encoded as `uint32_be(byte_len)||bytes`. Every `double` MUST first satisfy the Mining finite/non-negative-zero rules and is encoded as its IEEE-754 binary64 bit pattern in network/big-endian byte order. Booleans are exactly one byte `0x00` or `0x01`. Optional values are encoded with a one-byte presence marker: `0x00` when absent; `0x01||value` when present. Optional byte/string values encode the present value as `uint32_be(byte_len)||bytes`. `block_reward`, when present, uses the exact canonical ASCII `Decimal38Scale24.canonical` bytes with a uint32 length prefix.
+
+The exact request preimage is:
+
+`uint16_be(1)`
+`|| uint64_be(block_height)`
+`|| lp32_utf8(miner)`
+`|| lp32_utf8(worker)`
+`|| lp32_utf8(user_agent)`
+`|| ieee754_binary64_be(difficulty)`
+`|| ieee754_binary64_be(achieved_share_difficulty)`
+`|| ieee754_binary64_be(actual_difficulty)`
+`|| ieee754_binary64_be(network_difficulty)`
+`|| lp32_utf8(source_ip)`
+`|| lp32_utf8(source)`
+`|| lp32_utf8(session_id)`
+`|| uint8(is_block_candidate ? 1 : 0)`
+`|| optional_lp32_bytes(candidate_hash)`
+`|| optional_lp32_utf8(candidate_kind)`
+`|| optional_lp32_utf8(transaction_confirmation_data)`
+`|| optional_lp32_ascii(block_reward.canonical)`.
+
+`created_unix_ms` is intentionally excluded because the lane sequencer generates it only after idempotency resolution. Core sequence, epoch sequence, log epoch and relay UUID are likewise excluded. No protobuf serialization, JSON serialization, locale formatting, native-endian float representation, omitted-default heuristic or field reordering is permitted as a substitute for this grammar. Future canonical request encodings require a new Mining profile minor or a new explicitly versioned request grammar; permanent tombstones retain the request-encoding version used by the original admission.
+
+The sender resolves the permanent tombstone first; same namespace key+digest returns the original admission forever, and the same namespace key with a different digest is `IDEMPOTENCY_KEY_CONFLICT`. Financial Mining callers MUST NOT be able to mint a second event by waiting for tombstone expiry.
 
 WAL + idempotency mapping cross one durable flush boundary before application success.
 
@@ -223,7 +247,7 @@ For integer-millisecond time, ending membership at `valid_until` requires final 
 
 ## 33. PayoutSafe scope
 
-PayoutSafe requires known durable mode, all RequiredSenders complete, clock-valid checkpoints, no relevant exact/wildcard gap or payout-significant quarantine, durable policy/contract evidence and anti-backdating guarantees. It is a safety statement under the Section 43 non-Byzantine authenticated-sender assumption; it does not prove a compromised sender truthful.
+PayoutSafe requires known durable mode, all RequiredSenders complete, clock-valid checkpoints, no relevant exact/wildcard gap or payout-significant quarantine, durable policy/contract evidence and anti-backdating guarantees. A checkpoint contributes to PayoutSafe only after its event sequence and checkpoint effect are durably committed by the receiver and the cumulative ACK covering that sequence is durably remembered by the sender. Sender-side checkpoint creation alone is never payout-safe evidence. It is a safety statement under the Section 43 non-Byzantine authenticated-sender assumption; it does not prove a compromised sender truthful.
 
 `PayoutSafeThrough` is monotonic. Cross-sender boundary uses checked `B+2S` unless tighter conservative interval proof exists.
 
@@ -275,13 +299,19 @@ Candidate ID is unique within `(scope, Miningcore contract)`. CandidateStateUpda
 
 ## 41. Bitcoin evidence and injective validation
 
-Receiver uses consensus-compatible parser/library and validates entire block. It MUST: verify block hash; parse all transactions; require tx0 coinbase; verify coinbase non-witness txid; reject **any duplicate txid anywhere in the block** before accepting Merkle evidence (closing CVE-2012-2459 duplicate-transaction malleability); compute full txid Merkle root; if any transaction uses witness serialization require valid highest-index BIP141 commitment, 32-byte reserved value and correct witness Merkle root; apply BIP34 according to configured network activation (mainnet height >=227931; other networks according to authoritative network parameters) with minimally encoded CScriptNum; verify miner/direct outputs; require gross reward equals all coinbase outputs.
+Receiver uses a consensus-compatible parser/library and validates the entire block. It MUST verify block hash; parse every transaction; require tx0 coinbase; verify coinbase non-witness txid; reject **any duplicate txid anywhere in the block** before accepting Merkle evidence; and compute the complete txid Merkle root.
 
-Consensus/merge-mining commitment outputs MUST be explicitly declared by sender as `(output_index, exact script_pub_key)` in `BitcoinDirectCoinbaseCandidate.consensus_commitments`. Receiver verifies index/script/value classification and profile/network allow-list under `direct_candidate_validation_version`; unrecognised undeclared remaining outputs fail closed. This supports AuxPoW/sidechain commitments without hard-coding them into Core.
+BIP34 activation is receiver-side network configuration, not inferred from a network-name string and not supplied by the candidate. The selected Mining scope/network parameters MUST provide the activation height (mainnet is 227931; synthetic-regtest vectors use 0; every other supported network uses its authoritative configured value). At every height greater than or equal to that configured activation, the coinbase first script item MUST equal the candidate block height as minimally encoded CScriptNum. Unknown or missing activation parameters fail closed.
+
+If any transaction uses witness serialization, the block MUST contain a valid BIP141 witness commitment. The highest matching `OP_RETURN 0x24 aa21a9ed <32>` output is authoritative for witness-root comparison, but **every** coinbase output matching the BIP141 commitment pattern MUST be explicitly present exactly once in `BitcoinDirectCoinbaseCandidate.consensus_commitments`. There is no implicit “recognized but undeclared” acceptance path. Duplicate declaration of one output index, omission of a BIP141-pattern output, wrong declared script/index/value, or declaration of an output that does not classify under the receiver-side allow-list is invalid.
+
+Consensus/merge-mining commitment classification is receiver-side policy keyed by `(network_id, direct_candidate_validation_version)`. A declaration is evidence about which exact coinbase output the sender intends to classify; it is **not authority to invent a new commitment class**. For each declared `(output_index, exact script_pub_key)`, the receiver MUST first verify the exact zero-valued coinbase output and then classify its script under the configured allow-list. If no allowed class matches, reject the candidate. Draft 0.5 conformance parameters include class `BIP141`; additional AuxPoW/sidechain commitment classes require an explicitly versioned profile/network rule before they are accepted.
+
+After commitment classification, receiver verifies miner/direct outputs and requires the gross reward to equal the sum of all coinbase outputs. Each coinbase output is consumed exactly once by the direct-recipient/miner classification or by one validated declared consensus-commitment classification; double classification and unclassified remaining outputs fail closed.
 
 Address metadata, when supplied, is validated using network_id from the selected Mining scope contract. Candidate message does not duplicate network_id.
 
-Conformance MUST include 4-tx and 3-tx blocks, witness-bearing multi-tx block, duplicate-txid CVE pair, missing witness commitment, bad Merkle, bad block hash, bad coinbase txid, bad reserved value, bad reward and trailing bytes.
+Conformance MUST include 4-tx and 3-tx blocks, witness-bearing multi-tx block, duplicate-txid CVE pair, missing/undeclared witness commitment, duplicate commitment declaration, disallowed commitment class, configured BIP34 mismatch, bad Merkle, bad block hash, bad coinbase txid, bad reserved value, bad reward and trailing bytes.
 
 ## 42. ADMIN actions
 
@@ -301,9 +331,9 @@ Every non-UNSPECIFIED error code must be referenced by spec/registry emission ru
 
 ## 45. Formal-model requirements
 
-The model MUST include independent state variables for durable WAL vs anchor, remembered ACK, receiver durable state, current/retired epochs, gap scope/range, receiver rollback observation/detection, writer ownership and payout/prune frontiers. Checked invariants include writer uniqueness, ACK/prune ordering, normal drain, exceptional exact/wildcard gap coverage, cross-epoch temporal floor, PayoutSafeThrough monotonicity and SafePruneThrough<=PayoutSafeThrough.
+The model MUST include independent state variables for durable WAL vs anchor, remembered ACK, receiver durable state, sender checkpoint vs receiver-committed checkpoint evidence, current/retired epochs, gap scope/range, receiver rollback observation/detection, writer ownership, membership/clock proof gates and payout/prune frontiers. PayoutSafeThrough MUST NOT advance from sender-created checkpoint state alone: the model requires a receiver-committed checkpoint effect, sender remembered ACK covering that checkpoint, durable membership proof, clock proof and no unresolved current gap. Checked invariants include writer uniqueness, ACK/prune ordering, normal drain, exceptional exact/wildcard gap coverage, cross-epoch temporal floor, payout-evidence gating, PayoutSafeThrough monotonicity and SafePruneThrough<=PayoutSafeThrough.
 
-Mutation controls modify legitimate actions rather than add a purpose-built unsafe action: at minimum prune-to-receiverDurable, remember-ACK-before-commit, and normal-transition-without-drain; CI requires each mutation to violate an invariant. Deadlock checking remains off only for explicitly terminal operator-intervention states; liveness scenarios for normal drain/recovery are separately bounded and exercised.
+Mutation controls modify legitimate actions rather than add a purpose-built unsafe action: at minimum prune-to-receiverDurable, remember-ACK-before-commit, normal-transition-without-drain and payout-advance-without-evidence; CI requires each mutation to violate an invariant. Deadlock checking remains off only for explicitly terminal operator-intervention states; liveness scenarios for normal drain/recovery are separately bounded and exercised.
 
 ## 46. Evolution and reservations
 
@@ -319,7 +349,7 @@ Miningcore implements dedicated CoreDRP ingest, PostgreSQL durability, sender/re
 
 ## 49. Required conformance corpus
 
-Before stable release include: lane/type/scope/sequence/hash/UUID boundaries; exact-version profile negotiation with multiple majors/minors and per-version Core minima; scope digest length/ASCII negatives; reconnect precedence; receiver replacement; WAL/anchor corruption; permanent idempotency; event-time bounds/overflow; clock state wire transitions and replay/expiry; membership intervals and unlisted sender; checkpoint revocation; wildcard gaps/retired import; flow charge including max scope/empty payload/zero windows; Bitcoin multi-tx odd/even, duplicate txid, SegWit commitment negatives; candidate referential negatives; ADMIN ordering negatives; realistic formal mutations.
+Before stable release include: lane/type/scope/sequence/hash/UUID boundaries; exact-version profile negotiation with multiple majors/minors and per-version Core minima; scope digest length/ASCII negatives; reconnect precedence; receiver replacement; WAL/anchor corruption; permanent idempotency with canonical MiningShare request reconstruction; event-time bounds/overflow; clock state wire transitions and replay/expiry; membership intervals and unlisted sender; checkpoint revocation; wildcard gaps/retired import; flow charge including max scope/empty payload/zero windows; Bitcoin multi-tx odd/even, duplicate txid, SegWit declaration/commitment negatives and configured BIP34 mismatch; candidate referential negatives; ADMIN ordering negatives; realistic formal mutations including payout-evidence removal.
 
 ## 50. Authorship
 
