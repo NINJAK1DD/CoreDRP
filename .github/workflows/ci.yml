@@ -22,6 +22,8 @@ jobs:
         run: python3 tools/verify_admission_vectors.py
       - name: Verify current Draft 0.6 final Profile 1.1 vectors
         run: python3 tools/verify_draft06_vectors.py
+      - name: Verify review-blocker arithmetic, authority and summary vectors
+        run: python3 tools/verify_review_blocker_vectors.py
       - name: Verify freeze-completion safety vectors
         run: python3 tools/verify_freeze_completion_vectors.py
       - name: Verify current state-machine vectors
