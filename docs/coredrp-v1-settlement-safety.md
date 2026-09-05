@@ -82,29 +82,114 @@ Before ordinary records needed by a final settlement are destructively removed, 
 `|| required_sender_set_digest32`
 `|| uint32_be(checkpoint_evidence_count)`
 `|| checkpoint_evidence_digest32`
-`|| gap_quarantine_policy_snapshot_digest32`
-`|| receiver_state_version_uint64`
+`|| uint32_be(uncertainty_record_count)`
+`|| uncertainty_snapshot_digest32`
+`|| uint64_be(receiver_state_version)`
 `|| int64_be(proved_at_unix_ms)`.
 
-Every digest field is exactly 32 bytes. Counts are the exact number of canonical items represented by the corresponding digest. Scope and settlement ID lengths are bounded by their profile/application registries before encoding.
+Every digest field is exactly 32 bytes. Counts are the exact number of canonical items represented by the corresponding digest. Scope and settlement ID lengths are validated before encoding. `evidence_from_unix_ms <= evidence_through_unix_ms` is required. No database row serialization, JSON, locale formatting, protobuf serialization, unordered map iteration or implementation-defined identity encoding is permitted.
 
-Canonical digest inputs:
+### 6.1 ParticipantEffectV1
 
-- `participant_effects_digest32 = SHA256(uint32_be(count) || repeated(uint32_be(item_len)||item))`, where items are the exact scheme-specific canonical participant/value effect records sorted by the scheme's canonical accounting order;
-- `required_sender_set_digest32 = SHA256(uint32_be(count) || repeated(sender_uuid16))`, sender UUIDs sorted lexicographically as RFC 9562 bytes;
-- `checkpoint_evidence_digest32 = SHA256(uint32_be(count) || repeated(sender_uuid16 || uint64_be(sequence) || chain_hash32 || int64_be(complete_through_unix_ms) || uint32_be(effective_skew_ms)))`, sorted by sender UUID bytes;
-- `gap_quarantine_policy_snapshot_digest32` is the SHA-256 of a versioned, length-delimited canonical list of every relevant gap/quarantine/policy state record identity/status referenced by the proof, sorted by `(kind, raw identity bytes)`.
+Each participant effect begins:
 
-No database row serialization, JSON, locale formatting or unordered map iteration is allowed.
+`uint16_be(1) || uint8(effect_kind)`.
 
-### 6.1 Scheme-specific participant effect records
+`effect_kind` allocation:
 
-- PPLNS/PPLNSBF/PROP: each canonical item contains recipient/accounting identity bytes plus exact settled amount in `Decimal38Scale24` canonical ASCII and the share/effect identity digest used by the settlement.
-- PPS: each item contains accounting ID UUID16 plus canonical liability amount and final settlement effect digest.
-- CUSTODIAL_SOLO: item contains winning accounting/share identity plus final payout amount/effect digest.
-- DIRECT_SOLO: item contains candidate UUID16 plus final submission/settlement state digest.
+- `1 = WINDOW_ACCOUNTING_EFFECT` for PPLNS/PPLNSBF/PROP;
+- `2 = PPS_LIABILITY_EFFECT`;
+- `3 = CUSTODIAL_SOLO_EFFECT`;
+- `4 = DIRECT_SOLO_EFFECT`.
 
-An implementation that cannot produce this summary MUST retain the underlying ordinary records. Age alone never makes an incomplete summary sufficient.
+For kinds 1–3, the complete record is:
+
+`uint16_be(1)`
+`|| uint8(effect_kind)`
+`|| accounting_id_uuid16`
+`|| uint16_be(miner_len) || miner_utf8`
+`|| uint16_be(amount_len) || amount_decimal_ascii`
+`|| effect_identity_digest32`.
+
+For kind 4:
+
+`uint16_be(1)`
+`|| uint8(4)`
+`|| candidate_id_uuid16`
+`|| uint16_be(miner_len) || miner_utf8`
+`|| uint16_be(amount_len) || amount_decimal_ascii`
+`|| effect_identity_digest32`.
+
+`accounting_id_uuid16` and `candidate_id_uuid16` use RFC 9562 bytes. `miner_utf8` is the exact Miningcore payout identity string used by the final effect, without normalization. `amount_decimal_ascii` is positive Mining `Decimal38Scale24` canonical ASCII. `effect_identity_digest32` is the immutable application-effect identity digest already stored by the final settlement/accounting transaction; it MUST bind the underlying accepted share/candidate/effect identity and final destination/amount semantics.
+
+Construct every participant record, reject duplicate record bytes, sort the complete records lexicographically by raw bytes, then define:
+
+`participant_effects_digest32 = SHA256(uint16_be(1) || uint32_be(participant_effect_count) || repeated(uint32_be(record_len) || record_bytes))`.
+
+A scheme whose final effects cannot be represented by one of these allocated kinds MUST retain ordinary evidence until a future registry version allocates a representation.
+
+### 6.2 Required sender-set bytes
+
+Sender UUIDs are RFC 9562 bytes, unique and sorted lexicographically. Define:
+
+`required_sender_set_bytes = uint16_be(1) || uint32_be(required_sender_count) || repeated(sender_uuid16)`.
+
+`required_sender_set_digest32 = SHA256(required_sender_set_bytes)`.
+
+### 6.3 CheckpointEvidenceV1
+
+Each record is exactly:
+
+`uint16_be(1)`
+`|| sender_uuid16`
+`|| uint64_be(sequence)`
+`|| chain_hash32`
+`|| int64_be(complete_through_unix_ms)`
+`|| uint32_be(effective_skew_ms)`.
+
+There MUST be exactly one checkpoint evidence record per required sender for the settlement proof. Sort records by sender UUID bytes; duplicate sender UUID is invalid. Define:
+
+`checkpoint_evidence_digest32 = SHA256(uint16_be(1) || uint32_be(checkpoint_evidence_count) || repeated(uint32_be(record_len) || record_bytes))`.
+
+### 6.4 UncertaintyRecordV1 and status allocation
+
+Each relevant gap/quarantine/policy record retained by the proof is represented exactly as:
+
+`uint16_be(1)`
+`|| uint8(kind)`
+`|| uint8(status)`
+`|| uint16_be(identity_len) || identity_bytes`.
+
+`kind` allocation:
+
+- `1 = GAP`;
+- `2 = QUARANTINE`;
+- `3 = TEMPORAL_POLICY_RECONCILIATION`.
+
+`status` allocation:
+
+- `1 = UNRESOLVED`;
+- `2 = RESOLVED_RECONCILED`;
+- `3 = RESOLVED_WAIVED`;
+- `4 = POLICY_RECONCILIATION_PENDING` (valid only for kind 3).
+
+Valid kind/status combinations are: GAP or QUARANTINE with status 1,2,3; TEMPORAL_POLICY_RECONCILIATION with status 2,3,4. Unknown values/combinations are invalid.
+
+Identity bytes are fully defined by kind:
+
+- GAP: exactly `gap_uuid16`;
+- QUARANTINE: `sender_uuid16 || uint8(lane) || epoch_uuid16 || uint64_be(sequence) || relay_event_uuid16 || uint16_be(event_type)`;
+- TEMPORAL_POLICY_RECONCILIATION: `admin_idempotency_uuid16 || uint64_be(policy_generation)`.
+
+Construct records, reject duplicate `(kind,identity_bytes)`, sort by raw `(kind, identity_bytes)`, and define:
+
+`uncertainty_snapshot_digest32 = SHA256(uint16_be(1) || uint32_be(uncertainty_record_count) || repeated(uint32_be(record_len) || record_bytes))`.
+
+An empty relevant uncertainty set is represented by count 0 and the digest of exactly `uint16_be(1)||uint32_be(0)`; it is never represented by zero bytes or a zero digest.
+
+### 6.5 Reconstruction rule
+
+An auditor with the retained summary plus the canonical participant/sender/checkpoint/uncertainty records MUST be able to reconstruct every digest byte-for-byte. Any implementation unable to persist these canonical records or independently reconstruct all four digests MUST retain the underlying ordinary evidence and MUST NOT claim `SettlementPruneSafe` on that basis.
 
 ## 7. Settlement proof record
 
