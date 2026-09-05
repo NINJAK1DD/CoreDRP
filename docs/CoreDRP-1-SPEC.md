@@ -4,122 +4,134 @@
 
 Copyright © 2026 Rob Cooke · SPDX-License-Identifier: CC-BY-4.0
 
-**Status:** Draft 0.3 hardening revision  
+**Status:** Draft 0.4 hardening revision  
 **Reference implementation target:** Miningcore  
-**Normative language:** The key words **MUST**, **MUST NOT**, **REQUIRED**, **SHALL**, **SHALL NOT**, **SHOULD**, **SHOULD NOT**, **RECOMMENDED**, **NOT RECOMMENDED**, **MAY**, and **OPTIONAL** are to be interpreted as described by RFC 2119 and RFC 8174 when, and only when, they appear in all capitals.
+**Normative language:** The key words **MUST**, **MUST NOT**, **REQUIRED**, **SHALL**, **SHALL NOT**, **SHOULD**, **SHOULD NOT**, **RECOMMENDED**, **NOT RECOMMENDED**, **MAY**, and **OPTIONAL** are interpreted as RFC 2119/RFC 8174 terms only when they appear in all capitals.
 
 ---
 
 ## 1. Status and conformance
 
-CoreDRP/1 is specification-first and pre-implementation. Draft 0.3 incorporates the findings from four independent adversarial passes over Drafts 0.1 and 0.2.
+CoreDRP/1 is specification-first and pre-implementation. Draft 0.4 incorporates six independent adversarial review passes across the public Draft 0.1 through Draft 0.3 repository states.
 
-An implementation is conforming only if it satisfies the Core rules in this document and every negotiated profile rule. Generated protobuf types alone are not a conformance definition.
+An implementation is conforming only when it satisfies Core plus every selected profile. Generated protobuf types are transport bindings, not a conformance definition.
 
 The normative order of authority is:
 
 1. this specification;
-2. the numbered error, event-type, admin-action and conformance-vector registries;
-3. the `.proto` files;
+2. numbered error, event-type, ADMIN-action, metric and conformance registries;
+3. `.proto` files;
 4. reference tooling.
 
-Reference code MUST NOT override the specification.
+Reference code MUST NOT override the specification. If a test or implementation disagrees with this document, the implementation/test is defective until the normative text itself is intentionally revised.
+
+Draft status means fields and rules may still change through explicit protocol review. No stable interoperability promise exists until CoreDRP/1 is declared stable.
 
 ## 2. Layering
 
-CoreDRP/1 Core is application-neutral. It owns authenticated identity, scopes, lanes, epochs, sequences, event time, exact payload bytes, event identity, chaining, sender durability, replay, cumulative ACKs, generic checkpoints, gaps, quarantine mechanics, flow control, clock evidence, reconnect and recovery.
+CoreDRP Core is domain-independent. It owns authenticated identities, opaque scopes, numbered lanes, epochs, sequence ordering, event time, exact payload bytes, event identity, cryptographic chaining, sender durability, replay, cumulative ACKs, generic checkpoints, gaps, quarantine mechanics, flow control, clock evidence, reconnect, recovery, and administrative digest mechanics.
 
-The CoreDRP Mining Profile v1 owns mining scope semantics, lane meanings, mining share semantics, temporal sender membership, PayoutFence/CriticalCheckpoint interpretation, `RequiredSender`, `PayoutSafe`, `PayoutSafeThrough`, `SafePruneThrough`, and deterministic cross-sender ordering for mining accounting.
+Mining Profile v1 owns mining-scope syntax, lane meaning, share semantics, temporal membership, temporal completeness-mode policy, PayoutFence/CriticalCheckpoint interpretation, `RequiredSender`, `PayoutSafe`, `PayoutSafeThrough`, `SafePruneThrough`, clock-policy parameters and deterministic mining accounting order.
 
-The Miningcore Integration Profile v1 owns PostgreSQL schema, Miningcore share/accounting projections, payout/pruning integration, direct-coinbase evidence, operator APIs and Miningcore metrics.
+Miningcore Integration Profile v1 owns PostgreSQL persistence, Miningcore accounting projections, scheme-specific payout/pruning integration, direct-coinbase evidence, operator-facing integration and `miningcore_coredrp_*` metrics.
 
-Dependencies are one-way: Miningcore MAY depend on Mining; Mining MAY depend on Core; the reverse directions are forbidden.
+Dependencies are one-way: Miningcore MAY depend on Mining; Mining MAY depend on Core. Reverse dependencies are forbidden and CI MUST enforce them.
 
 ## 3. Terms
 
-**Sender**: process that durably admits events and initiates CoreDRP streams.
+**Sender:** process that durably admits events and initiates CoreDRP streams.
 
-**Receiver**: process that verifies and durably commits events.
+**Receiver:** process that verifies and durably commits events.
 
-**Lane**: independent ordered durable stream identified by an 8-bit number.
+**Receiver ID:** stable logical receiver/recorder-cluster UUID authenticated by TLS and pinned by the sender.
 
-**Epoch**: UUID-scoped logical history of one sender lane. An epoch resets sequence numbering, but it does not reset durable temporal/completeness floors for a continuing sender/lane.
+**Receiver database incarnation:** UUID representing one durable database history. It is stable across ordinary process restart and changes when database history may have rolled back or been replaced.
 
-**Scope**: opaque Core byte string interpreted by profiles.
+**Lane:** independent ordered stream identified by an 8-bit number.
 
-**Durable tail**: highest sender sequence whose complete WAL record has been flushed to durable storage.
+**Epoch:** UUID-scoped history of one sender/lane. Sequence numbering resets at an epoch boundary; safety/completeness temporal floors do not.
 
-**Committed sequence**: highest receiver sequence whose event effects and stream state have durably committed.
+**Scope:** opaque Core bytes interpreted by selected profiles.
 
-**Remembered ACK**: receiver ACK durably persisted by the sender.
+**Durable tail:** highest sender sequence whose complete WAL record is durably flushed.
 
-**Checkpoint**: Core event proving no later covered event may be introduced at or before its boundary.
+**Committed sequence:** highest receiver sequence whose effects and stream state are durably committed.
 
-**Temporal floor**: durable sender/lane lower bound inherited across epoch transitions. Covered events in a later epoch MUST be strictly newer than any inherited checkpoint floor.
+**Remembered ACK:** receiver ACK durably persisted by the sender.
+
+**Checkpoint:** chained Core event proving no later covered event may be introduced at or before its time boundary.
+
+**Temporal floor:** durable cross-epoch lower bound for event time/checkpoint safety.
+
+**Normal epoch transition:** transition in which every old-epoch durable event has been durably committed and ACKed before retirement.
+
+**Exceptional epoch abandonment:** explicit operator action that retires an epoch with an unreplicated suffix while creating an auditable unresolved gap.
 
 ## 4. Fixed identifiers and domain separation
 
-The protocol name is `CoreDRP/1`.
+Protocol name: `CoreDRP/1`.
 
-Protobuf packages are `coredrp.v1`, `coredrp.mining.v1`, and `coredrp.miningcore.v1`.
+Protobuf packages:
 
-The permanently assigned wire profile identifiers are:
+- `coredrp.v1`
+- `coredrp.mining.v1`
+- `coredrp.miningcore.v1`
+
+Permanent profile IDs:
 
 - `PROFILE_ID_MINING = "coredrp.mining"`
 - `PROFILE_ID_MININGCORE = "coredrp.miningcore"`
 
-Profile IDs are ASCII, byte-exact and case-sensitive. The protobuf package name is not a substitute for the profile ID.
+Profile IDs are ASCII, byte-exact, case-sensitive and independent from protobuf package names.
 
-The sender certificate identity URI is:
+Sender certificate URI SAN:
 
 `urn:coredrp:sender:<uuid>`
 
-The UUID MUST be lower-case canonical textual form.
+Receiver certificate URI SAN:
 
-The following ASCII strings are fixed for CoreDRP/1:
+`urn:coredrp:receiver:<uuid>`
 
-| Symbol | Exact ASCII bytes | Purpose |
+UUID textual form MUST be lower-case canonical form.
+
+Fixed ASCII domain tags:
+
+| Symbol | Exact bytes | Purpose |
 |---|---|---|
 | `PAYLOAD_DOMAIN` | `CoreDRP1-PAYLOAD` | payload digest |
-| `EVENT_DOMAIN` | `CoreDRP1-EVENT` | per-event chain |
-| `GENESIS_DOMAIN` | `CoreDRP1-GENESIS` | epoch/lane genesis |
-| `CONTRACT_DOMAIN` | `CoreDRP1-CONTRACT` | epoch contract binding |
-| `ADMIN_DOMAIN` | `CoreDRP1-ADMIN` | privileged-request digest |
+| `EVENT_DOMAIN` | `CoreDRP1-EVENT` | event chain |
+| `GENESIS_DOMAIN` | `CoreDRP1-GENESIS` | epoch genesis |
+| `CONTRACT_DOMAIN` | `CoreDRP1-CONTRACT` | epoch binding |
+| `ADMIN_DOMAIN` | `CoreDRP1-ADMIN` | privileged request digest |
+| `ADMISSION_DOMAIN` | `CoreDRP1-ADMISSION` | local admission identity digest |
 
-No NUL terminator is included. CoreDRP/1 MUST NOT reinterpret any listed tag.
+No NUL terminators are included. CoreDRP/1 MUST NOT reinterpret an assigned tag.
 
-## 5. Primitive encodings and preimage-range validation
+## 5. Primitive encodings and range validation
 
-Cryptographic preimages use:
+Cryptographic encodings use unsigned big-endian `uint8`, `uint16_be`, `uint32_be`, `uint64_be`; signed two's-complement `int64_be`; 32-byte SHA-256 digests; and 16-byte RFC 9562 UUID network order.
 
-- `uint8`, `uint16_be`, `uint32_be`, `uint64_be`: unsigned big-endian;
-- `int64_be`: signed two's-complement big-endian;
-- SHA-256 output: exactly 32 bytes;
-- UUID: exactly 16 octets in RFC 9562 network order, never platform-specific COM/.NET `Guid.ToByteArray()` order;
-- scope length: `uint16_be`;
-- payload length: `uint32_be`.
+Core sequence values are `1..2^63-1`; sequence zero denotes genesis only.
 
-CoreDRP sequence values are `1..2^63-1`. Sequence zero denotes epoch genesis only.
+Before any value enters a cryptographic preimage, implementations MUST validate its semantic range. In particular:
 
-A peer MUST validate **every value that enters any cryptographic preimage before encoding it**. In particular:
+- lane `0..255`;
+- event type `0..65535`;
+- sequence `1..2^63-1`;
+- scope length `0..65535`;
+- payload length fitting `uint32` plus all negotiated/profile limits;
+- Core/profile major/minor `0..2^32-1`;
+- all advertised event types before sorting/de-duplication.
 
-- lane MUST be `0..255`;
-- event type MUST be `0..65535`;
-- sequence MUST be `1..2^63-1`;
-- scope length MUST be `0..65535`;
-- payload length MUST fit `uint32` and all negotiated/hard bounds;
-- Core and profile major/minor values enter contract bindings as `uint32_be` and therefore MUST be `0..2^32-1` exactly as represented on the wire;
-- advertised event types MUST be range-checked before de-duplication or sorting.
+Implementations MUST NOT narrow, truncate, wrap or language-cast wider unvalidated integers before hashing.
 
-An implementation MUST NOT narrow, truncate, wrap or language-cast an unvalidated wider integer before hashing.
-
-## 6. Lane, profile and event-type registries
+## 6. Lane, event and error placement registries
 
 Core lane IDs are `0..255`. Core assigns no application meaning.
 
 Mining Profile v1 fixes lane 0 = SHARE and lane 1 = CRITICAL.
 
-The CoreDRP/1 global event-type space is 16-bit:
+Event-type allocations:
 
 - `0x0001`: Core CompletenessCheckpoint
 - `0x0100`: MiningShareEvent
@@ -127,777 +139,692 @@ The CoreDRP/1 global event-type space is 16-bit:
 - `0x0201`: BitcoinDirectCoinbaseCandidate
 - `0x0202`: CandidateStateUpdate
 - `0xF000..0xFFFE`: private/test use
-- all other values: reserved unless allocated by a later compatible revision
-- `0xFFFF`: reserved for conformance boundary testing
+- `0xFFFF`: conformance boundary only
 
-Unknown or unadvertised event types are fatal. Event type values above `0xFFFF` are rejected as `EVENT_TYPE_OUT_OF_RANGE` before hashing.
+Unknown or unadvertised event types are fatal. Values above `0xFFFF` are `EVENT_TYPE_OUT_OF_RANGE` before hashing.
 
-## 7. Hard pre-negotiation resource limits
+A known event type used on a forbidden lane or scope form is `INVALID_EVENT_PLACEMENT`, not `SEMANTIC_PAYLOAD_INVALID`. Placement errors are never quarantinable.
 
-These limits apply before any negotiated limit exists:
+## 7. Hard resource limits
 
-- maximum gRPC message: 20 MiB;
-- maximum `ClientHello` or `ServerHello`: 256 KiB;
-- maximum implementation string: 128 UTF-8 bytes;
-- maximum profile identifier: 64 ASCII bytes;
-- maximum profile entries: 32;
-- maximum scope-contract entries: 1024;
-- maximum advertised event types: 1024;
-- maximum Core scope: 65535 bytes;
-- maximum event payload: 16 MiB;
-- maximum batch event count: 4096;
-- maximum batch payload bytes: 16 MiB;
-- maximum ChainProbe count: 256;
-- every chain probe hash: exactly 32 bytes.
+Before negotiated limits exist, CoreDRP/1 enforces:
 
-A peer MUST reject an object exceeding a hard limit without allocating proportionally unbounded memory.
+- gRPC message <= 20 MiB;
+- Hello <= 256 KiB;
+- implementation string <= 128 UTF-8 bytes;
+- profile ID <= 64 ASCII bytes;
+- profile entries <= 32;
+- scope-contract entries <= 1024;
+- advertised event types <= 1024;
+- scope <= 65535 bytes;
+- event payload <= 16 MiB;
+- batch events <= 4096;
+- batch payload charge <= 16 MiB;
+- ChainProbe count `1..256`;
+- chain-probe hashes exactly 32 bytes.
 
-The effective limit for a profile object is the minimum of the Core hard limit, the negotiated limit and any stricter profile limit.
+A peer MUST reject a limit violation without allocating proportionally unbounded memory.
 
-## 8. Authentication and sender identity
+`RESOURCE_LIMIT_EXCEEDED` is used only for aggregate conditions that can become valid by splitting/retrying. Intrinsic single-object violations use `ATOMIC_RESOURCE_LIMIT_EXCEEDED`, `EVENT_TOO_LARGE`, or another permanent specific code.
+
+The effective limit is the minimum of Core hard, negotiated and profile limits.
+
+## 8. Authentication and stable peer identity
 
 TLS 1.3 with mutual TLS is REQUIRED.
 
-The receiver MUST extract exactly one `urn:coredrp:sender:` URI SAN. Zero or more than one such SAN is `UNAUTHORIZED_SENDER`. Other SAN types MAY coexist.
+The receiver extracts exactly one sender URI SAN and requires `ClientHello.sender_id` to equal its 16 UUID octets. Zero/multiple CoreDRP sender SANs or mismatch is `UNAUTHORIZED_SENDER`.
 
-`ClientHello.sender_id` MUST equal the 16 RFC 9562 octets of the authenticated SAN UUID. A mismatch is fatal `UNAUTHORIZED_SENDER`.
+The sender extracts exactly one receiver URI SAN and requires `ServerHello.receiver_id` to equal it. Zero/multiple CoreDRP receiver SANs is `INVALID_HANDSHAKE`; unexpected logical receiver-ID change is `RECEIVER_ID_CHANGED`.
 
-The receiver MUST authorize the sender for the requested lane and each non-empty event scope before applying that event. Transport authorization is an access-control fact only; it MUST NOT define historical mining completeness coverage.
+Receiver ID is a stable logical cluster identity and MUST NOT change during ordinary restart, rolling deployment, primary failover or database-incarnation rotation. A planned receiver-ID replacement requires explicit operator reconciliation and MUST retain the previous remembered ACK/rollback anchor; changing receiver ID MUST NEVER erase evidence of rollback.
 
-Security revocation and mining temporal membership are separate states. Revoking transport authorization MUST NOT silently alter payout membership or reinterpret an already-issued checkpoint.
+Receiver database incarnation is separate from receiver ID. It changes whenever restored/promoted state may lack an ACKed transaction.
 
-## 9. Core version negotiation and handshake validity
+Transport authorization and Mining temporal membership are separate. Revoking transport access MUST NOT rewrite historical completeness membership.
 
-The first client frame MUST be exactly one `ClientHello`. The first server frame MUST be either one `ServerHello` or one `ProtocolError`.
+## 9. Handshake validity
 
-An empty top-level `oneof`, a second hello, or any non-hello first frame is `MALFORMED_FRAME`.
+First client frame is exactly one `ClientHello`; first server frame is exactly one `ServerHello` or `ProtocolError`. Empty oneofs, second hellos or wrong-direction first frames are `MALFORMED_FRAME`.
 
-Core major mismatch is unconditional `PROTOCOL_VERSION_MISMATCH`.
+Core major mismatch is `PROTOCOL_VERSION_MISMATCH`. For major 1, each minor field advertises the maximum compatible minor and the negotiated minor is the highest common value.
 
-For Core major 1, `protocol_minor` means the highest compatible minor supported by that peer. The negotiated Core version is the highest minor not greater than both peers' advertised maxima. Behaviour introduced in minor `n` MUST NOT be used when the negotiated minor is lower than `n`.
+Handshake validity requires fixed-length UUID/hash fields, lane/sequence ranges, internally consistent retained/tail positions, ACK sequence/hash presence pairing, unique event types, unique profile ID/major lines, and unique version-qualified scope-contract entries.
 
-Handshake validity requires:
+Scope contract uniqueness key is:
 
-- `sender_id` and `log_epoch` exactly 16 bytes;
-- `lane_id <= 255`;
-- all sequence values `<= 2^63-1`;
-- `earliest_retained_sequence >= 1` and `earliest_retained_sequence <= durable_tail_sequence + 1`;
-- remembered ACK sequence/hash either both absent or both present;
-- a present remembered ACK sequence in `1..durable_tail_sequence` and its hash exactly 32 bytes;
-- receiver ID and receiver database incarnation exactly 16 bytes;
-- committed chain hash and current contract-binding digest exactly 32 bytes;
-- selected/advertised semantic digests absent only where that profile explicitly permits absence, otherwise exactly 32 bytes;
-- all event types range-checked before uniqueness checks;
-- duplicate event types forbidden;
-- duplicate profile ID/major tuples forbidden;
-- **all duplicate `(scope, profile_id)` scope-contract entries forbidden, whether identical or conflicting**;
-- every negotiated limit non-zero, within Section 7 and internally consistent.
+`(scope, profile_id, profile_major, profile_minor)`.
 
-`remembered_contract_binding_digest` is absent only during first bootstrap of an epoch that has no persisted binding. Once a binding has been persisted, the field MUST be present exactly once, MUST be 32 bytes, MUST equal the sender's durable anchor, and MUST be compared with the receiver's durable binding for that epoch.
+A selected scope contract MUST match the selected profile major/minor exactly.
 
-Any violation is `INVALID_HANDSHAKE` unless a more specific range/authorization code applies.
+`remembered_contract_binding_digest` is absent only for a freshly approved epoch that has not yet established a binding; after bootstrap it MUST be present, 32 bytes and equal to the sender durable anchor.
 
-## 10. Deterministic profile and semantic-contract negotiation
+## 10. Deterministic profile negotiation
 
-For CoreDRP/1 profiles, `profile_major` is an exact major and `profile_minor` is the highest compatible minor supported within that major.
+`profile_major` is an exact major. `profile_minor` advertises the highest compatible minor within that major.
 
-For each profile ID, the receiver MUST select at most one version. Selection is deterministic:
+For each profile ID the receiver:
 
-1. discard any sender profile line whose `minimum_core_major/minor` is greater than the negotiated Core version using lexicographic `(major, minor)` comparison;
-2. require an exact profile-major match supported by both peers;
-3. select the highest profile minor no greater than both peers' supported maxima;
-4. require the selected line to be one of the sender's advertised profile ID/major lines;
-5. reject if the selected semantic-contract digest differs;
-6. select only event types defined by the selected profile version and advertised by both sides.
+1. discards lines whose `minimum_core_*` exceeds negotiated Core version;
+2. finds an exact major supported by both peers;
+3. selects the highest mutually supported minor;
+4. selects at most one version for the profile ID;
+5. selects only event types defined by that exact profile version and advertised by both peers;
+6. selects only `ScopeContractSupport` entries whose `profile_id/major/minor` exactly equal that selected version.
 
-A profile requiring Core 1.3 MUST NOT be selected when Core 1.1 was negotiated.
+Mining Profile v1 and Miningcore Profile v1 use **scope-owned semantic digests**. Their `ProfileSupport.semantic_contract_digest` and `ProfileSelection.semantic_contract_digest` MUST therefore be absent. They MUST NOT copy an arbitrary scope digest into the profile-global field.
 
-A semantic-contract digest, when required by a profile, is exactly 32 bytes and uses SHA-256 over the profile's canonical source bytes defined in Section 12. Empty digest is permitted only if the profile explicitly declares that it has no semantic contract; it is never wildcard acceptance.
-
-Digest mismatch is `SEMANTIC_CONTRACT_MISMATCH` and is never silently downgraded.
+Profiles that genuinely define global, scope-independent semantics MAY define a profile-global digest in a future compatible revision.
 
 ## 11. Epoch contract binding
 
-Before admitting the first profile event of a new epoch, the sender MUST complete a successful handshake and durably persist the accepted contract binding.
+Before admitting the first event of any epoch, the sender MUST possess durable epoch approval and MUST complete a successful bootstrap handshake that establishes the epoch contract binding.
 
-This bootstrap requirement applies only when establishing an epoch binding. Later receiver/network outages MUST NOT prevent local durable admission of event types already authorized by that persisted binding.
+After the binding is durable, receiver/network outages MUST NOT prevent local admission of event types already permitted by the binding.
 
-The binding digest is:
+Binding digest:
 
-`SHA256(CONTRACT_DOMAIN || uint32_be(core_major) || uint32_be(core_minor) || uint8(lane_id) || profile_set || scope_contract_set || event_type_set)`
+`SHA256(CONTRACT_DOMAIN || uint32_be(core_major) || uint32_be(core_minor) || uint8(lane) || profile_set || scope_contract_set || event_type_set)`
 
-`profile_set` is sorted by ASCII profile ID, then major, then minor. Each entry is:
+`profile_set` is sorted by profile ID, major, minor. Entry:
 
-`uint16_be(id_len) || id_ascii || uint32_be(major) || uint32_be(minor) || uint8(has_digest) || [32-byte digest]`
+`uint16_be(id_len) || id || uint32_be(major) || uint32_be(minor) || uint8(has_digest) || [digest]`.
 
-`has_digest` is exactly `0` or `1`; when `0`, no digest bytes follow; when `1`, exactly 32 digest bytes follow.
+For Mining/Miningcore v1, `has_digest=0` because their semantics are scope-owned.
 
-`scope_contract_set` is sorted lexicographically by scope bytes then profile ID. `(scope, profile_id)` is a unique key. Each entry is:
+`scope_contract_set` is sorted by scope bytes, profile ID, major, minor. Entry:
 
-`uint16_be(scope_len) || scope || uint16_be(profile_id_len) || profile_id_ascii || 32-byte digest`
+`uint16_be(scope_len) || scope || uint16_be(profile_id_len) || profile_id || uint32_be(profile_major) || uint32_be(profile_minor) || 32-byte digest`.
 
-`event_type_set` is the ascending unique set of **already range-validated** event types. Each is encoded `uint16_be(event_type)` and the set is preceded by `uint16_be(count)`.
+`event_type_set` is ascending unique validated `uint16_be` values preceded by `uint16_be(count)`. Every set has a `uint16_be(count)`.
 
-Each set is preceded by `uint16_be(count)`.
+The binding is immutable for an epoch. Capability withdrawal, selected-version change, scope-contract digest change or selected event-set change produces `CONTRACT_BINDING_CHANGED` while the epoch remains active.
 
-The binding is immutable for an epoch. A receiver that withdraws an event type or changes a selected semantic contract while unretired WAL history exists causes `CONTRACT_BINDING_CHANGED`. The sender MUST NOT skip durable events to accommodate a changed contract.
+## 12. Mining and Miningcore semantic contracts
 
-## 12. Canonical Mining and Miningcore semantic-contract digests
+### Mining scope contract
 
-### 12.1 Mining scope contract
+Mining v1 canonical source bytes are:
 
-Mining Profile v1 requires a per-scope digest. Canonical source bytes are:
+`uint16_be(profile_id_len)||"coredrp.mining"||uint32_be(profile_major)||uint32_be(profile_minor)||uint16_be(scope_len)||scope||uint8(payout_scheme)||uint16_be(coin_id_len)||coin_id||uint16_be(network_id_len)||network_id||uint16_be(completeness_policy_version)||uint16_be(retention_policy_version)||uint8(cross_sender_ordering_policy)||uint32_be(permitted_clock_skew_ms)||uint32_be(max_clock_step_ms)||uint32_be(probe_interval_ms)||uint32_be(probe_processing_max_ms)||uint32_be(evidence_expiry_ms)||uint32_be(unknown_grace_ms)||uint64_be(admission_idempotency_horizon_ms)`.
 
-`uint16_be(profile_id_len) || "coredrp.mining" || uint32_be(profile_major) || uint32_be(profile_minor) || uint16_be(scope_len) || scope || uint8(payout_scheme) || uint16_be(coin_id_len) || coin_id_ascii || uint16_be(network_id_len) || network_id_ascii || uint16_be(completeness_policy_version) || uint16_be(retention_policy_version) || uint8(cross_sender_ordering_policy) || uint8(completeness_mode) || uint32_be(permitted_clock_skew_ms) || uint32_be(max_clock_step_ms) || uint32_be(probe_interval_ms) || uint32_be(probe_processing_max_ms) || uint32_be(evidence_expiry_ms) || uint32_be(unknown_grace_ms)`
+The digest is SHA-256 of those exact bytes.
 
-The digest is `SHA256(source_bytes)`.
+Payout schemes: `1=PPLNS`, `2=PPLNSBF`, `3=PROP`, `4=SOLO`, `5=PPS`, `6=DIRECT_SOLO`. Ordering policy 1 means Section 35.
 
-`coin_id` and `network_id` MUST match `[a-z0-9._-]{1,64}`.
+**The current completeness mode is intentionally absent from the immutable semantic contract.** The contract binds the completeness-policy algorithm/version; the effective mode is temporal audited policy under Section 32. This resolves the contradiction between an immutable epoch binding and future-effective mode changes.
 
-Payout scheme values are: `1=PPLNS`, `2=PPLNSBF`, `3=PROP`, `4=SOLO`, `5=PPS`, `6=DIRECT_SOLO`. Zero is invalid for an active Mining scope contract.
+`coin_id`/`network_id` match `[a-z0-9._-]{1,64}`.
 
-`cross_sender_ordering_policy` is fixed to `1` for Mining Profile v1 and means Section 35 ordering.
+### Miningcore scope contract
 
-`completeness_mode` is `1=RELAY_REQUIRED` or `2=NO_RELAY_REQUIRED`. Zero/unknown values are invalid.
+Canonical source bytes:
 
-Mining-specific source bytes MUST NOT contain Miningcore database/accounting schema versions.
+`uint16_be(profile_id_len)||"coredrp.miningcore"||uint32_be(profile_major)||uint32_be(profile_minor)||uint16_be(scope_len)||scope||uint32_be(accounting_schema_version)||uint32_be(persistence_schema_version)||uint16_be(direct_candidate_validation_version)||uint16_be(settlement_policy_version)`.
 
-### 12.2 Miningcore scope contract
+Digest is SHA-256.
 
-Miningcore Profile v1 requires a separate per-scope digest. Canonical source bytes are:
+## 13. Event identity and cryptographic chain
 
-`uint16_be(profile_id_len) || "coredrp.miningcore" || uint32_be(profile_major) || uint32_be(profile_minor) || uint16_be(scope_len) || scope || uint32_be(accounting_schema_version) || uint32_be(persistence_schema_version) || uint16_be(direct_candidate_validation_version) || uint16_be(settlement_policy_version)`
-
-The digest is `SHA256(source_bytes)`.
-
-The repository conformance corpus MUST provide source configuration, exact source bytes and expected digest for both profiles.
-
-## 13. Event identity and cryptographic construction
-
-Every Event contains sequence, event_type, scope, event_time_unix_ms, exact payload bytes and a 16-byte `relay_event_id`.
-
-The event ID is immutable and part of the chain preimage. Core requires an RFC 9562 UUID; Mining Profile v1 requires UUIDv7. A sender MUST NOT reuse one `relay_event_id` for two different events.
-
-For exact payload bytes `P`:
+Every Event carries sequence, event type, scope, event time, exact payload bytes and 16-byte immutable relay event UUID. Mining requires UUIDv7.
 
 `payload_hash = SHA256(PAYLOAD_DOMAIN || uint32_be(len(P)) || P)`
 
-For sender UUID bytes `S`, epoch UUID bytes `E`, lane `L`:
+`chain[0] = SHA256(GENESIS_DOMAIN || sender_uuid || epoch_uuid || uint8(lane))`
 
-`chain[0] = SHA256(GENESIS_DOMAIN || S || E || uint8(L))`
+`chain[N] = SHA256(EVENT_DOMAIN || chain[N-1] || sender_uuid || epoch_uuid || uint8(lane) || uint64_be(sequence) || uint16_be(event_type) || relay_event_uuid || uint16_be(scope_len) || scope || int64_be(event_time) || payload_hash)`
 
-For sequence `N`, event type `T`, relay-event UUID bytes `R`, scope `Q`, event time `M`, payload hash `H` and previous chain `Cprev`:
+Sender hashes exact WAL payload bytes; receiver hashes exact received bytes. Parsed/re-serialized protobuf bytes never replace the original cryptographic evidence.
 
-`chain[N] = SHA256(EVENT_DOMAIN || Cprev || S || E || uint8(L) || uint64_be(N) || uint16_be(T) || R || uint16_be(len(Q)) || Q || int64_be(M) || H)`
+## 14. Batch validity and event placement
 
-The sender hashes exact payload bytes written to WAL. The receiver hashes exact bytes received. Protobuf reserialization is never canonical evidence.
+EventBatch contains `1..max_batch_events` contiguous events beginning exactly at `first_sequence`, must not overflow `2^63-1`, and carries a 32-byte terminal chain hash matching the final event.
 
-## 14. Batch validity, legal combinations and atomicity
+Mining placement matrix:
 
-An EventBatch MUST contain `1..max_batch_events` events; begin at a sequence in `1..2^63-1`; be contiguous; not overflow `2^63-1`; carry a 32-byte terminal hash equal to the computed final chain; and obey hard, negotiated and profile limits.
-
-Before opening a durable-effect transaction, the receiver MUST verify structure, ranges, authorization, legal event/lane/scope combination and the full cryptographic chain.
-
-Mining Profile v1 fixes this matrix:
-
-| Event type | Lane | Scope |
+| Type | Lane | Scope |
 |---|---:|---|
-| CompletenessCheckpoint (`0x0001`) | 0 or 1 | empty |
-| MiningShareEvent (`0x0100`) | 0 | non-empty Mining scope |
-| MiningcoreAccountingShareEvent (`0x0200`) | 0 | non-empty Mining scope |
-| BitcoinDirectCoinbaseCandidate (`0x0201`) | 1 | non-empty Mining scope |
-| CandidateStateUpdate (`0x0202`) | 1 | non-empty Mining scope |
+| CompletenessCheckpoint | 0 or 1 | empty |
+| MiningShareEvent | 0 | non-empty Mining scope |
+| MiningcoreAccountingShareEvent | 0 | non-empty Mining scope |
+| BitcoinDirectCoinbaseCandidate | 1 | non-empty Mining scope |
+| CandidateStateUpdate | 1 | non-empty Mining scope |
 
-A known event on the wrong lane or with the wrong scope form is `SEMANTIC_PAYLOAD_INVALID`; it MUST NOT be reinterpreted as another event class.
+Wrong lane/scope form is `INVALID_EVENT_PLACEMENT`, non-quarantinable.
 
-For `MiningShareEvent`:
+`MiningShareEvent` non-candidate events MUST omit candidate-only fields. Candidate events MUST carry non-empty candidate hash. Other candidate-field requirements are coin/profile specific.
 
-- `is_block_candidate=false` requires `candidate_hash`, `candidate_kind`, `transaction_confirmation_data` and `block_reward` all absent;
-- `is_block_candidate=true` requires `candidate_hash` present and non-empty; profile/coin rules determine which other candidate fields are required;
-- candidate-only fields MUST NOT be populated on non-candidates.
+The receiver verifies entire batch structure/ranges/authorization/placement/chain before durable effects. Normal batch effects are all-or-nothing. Profile payload failure rolls back the batch and returns `SEMANTIC_PAYLOAD_INVALID` for the failing sequence.
 
-Normal receiver batch effects are all-or-nothing. Any structural/integrity failure commits nothing and is never quarantinable. Semantic failure at sequence `k` rolls back the batch and returns `SEMANTIC_PAYLOAD_INVALID` for `k`.
+## 15. Sender durable admission and idempotency
 
-A previously admitted event is immutable and cannot be "corrected" in place. Progress past a semantic failure is possible only by accepting the exact same bytes after validator/configuration correction, or by the explicit quarantine flow in Section 24.
+Acceptance order:
 
-## 15. Sender durable admission, local idempotency and WAL
+`validate request → resolve admission key → allocate sequence/time/relay ID if new → serialize exact payload → append WAL + idempotency mapping → durable flush → application success`.
 
-Application acceptance ordering is:
+A retry-capable caller supplies stable `caller_admission_key`. Before sequence/time/relay-ID allocation, sender computes:
 
-`validated work → resolve durable admission idempotency key → lane sequencer allocates sequence/time/id if new → exact payload serialized → complete WAL record and idempotency mapping written → durable flush succeeds → application success acknowledgement`
+`admission_digest = SHA256(ADMISSION_DOMAIN || uint16_be(event_type) || uint16_be(scope_len) || scope || uint32_be(payload_len) || exact_payload || uint32_be(profile_metadata_len) || profile_metadata)`.
 
-A sender MUST NOT acknowledge successful durable admission before the flush.
+`profile_metadata` is empty unless the selected profile explicitly defines immutable caller-provided metadata that is not already in payload/scope. Generated sequence, event time and relay UUID MUST NOT appear in the digest.
 
-Any caller that may retry an admission after an unknown outcome MUST supply a stable `caller_admission_key`, or the applicable profile MUST provide an equivalent immutable business key. The sender MUST durably bind:
+The durable mapping is:
 
-`caller_admission_key → relay_event_id → (lane, epoch, sequence, payload identity)`
+`caller_admission_key -> admission_digest -> relay_event_id -> (lane,epoch,sequence)`.
 
-in the same durable boundary as the WAL record. Retrying the same key returns the original admission/result and MUST NOT allocate a second event ID. Reusing the same key for different event bytes is a local idempotency conflict and MUST fail closed.
+Same key/digest within the contract-bound idempotency horizon returns the original admission. Same key with different digest is `IDEMPOTENCY_KEY_CONFLICT` and fails closed.
 
-A caller MUST NOT blindly retry an unknown durable-admission outcome without such an idempotency mechanism.
+The Mining contract binds `admission_idempotency_horizon_ms`. Sender MUST retain a compact key/digest tombstone for at least that horizon after original durable admission, even if WAL/effect rows are pruned. Callers MUST NOT retry the key after the horizon. The Core invariant therefore applies for the defined retry horizon, not indefinitely.
 
-Each lane has an independent bounded admission channel, sequence space, WAL and state anchor. Overflow policy is backpressure, never drop.
+WAL records have independent length + CRC32C/equivalent physical-integrity framing. UnACKed events are never evicted.
 
-A WAL record MUST have local physical-corruption framing independent of the event chain, including a length and CRC32C or cryptographically equivalent record-integrity check.
+## 16. Sender durable anchor and pruning
 
-Crash semantics:
+Per-lane durable state includes sender/lane, active epoch, last durable sequence/hash, last event time, temporal/checkpoint floors, oldest retained sequence, receiver ID/database incarnation, remembered ACK sequence/hash, contract binding, retired epoch tombstones and idempotency tombstones still within their required horizon.
 
-| Failure | Required result |
-|---|---|
-| before WAL durability | no durable application success may have occurred |
-| durable WAL/idempotency mapping, before application response | retry with same key returns the original event |
-| after application success | event and admission mapping MUST recover from WAL/state |
-| disk full/fsync EIO | stop new admission |
-| torn unacknowledged tail | MAY truncate only when proven never durably acknowledged |
-| middle-record corruption | fail closed; never skip |
-| corrupted acknowledged record | recovery/safety incident; never silently create a new epoch |
+Anchor may lag WAL but MUST NEVER lead it. Replacement uses temp write, file flush, atomic rename/replace and directory metadata flush where required.
 
-Unacknowledged records MUST NEVER be evicted.
+Recovery validates the anchor against WAL then scans forward.
 
-## 16. Durable sender anchor, temporal floor and pruning
+Pruning order:
 
-The per-lane durable state includes at least:
+`validate ACK → durably persist ACK/receiver anchor → only then prune ACKed WAL`.
 
-- sender_id, lane_id, active log_epoch;
-- last durable sequence and chain hash;
-- last assigned event time;
-- inherited temporal floor and last trusted checkpoint floor;
-- oldest retained sequence;
-- remembered receiver ID and database incarnation;
-- remembered ACK sequence/hash;
-- epoch contract-binding digest;
-- permanent retired-epoch tombstones;
-- durable admission-idempotency records still required for replay/deduplication.
+Never prune evidence required by unresolved gap/quarantine/epoch/settlement state or still-active idempotency horizons.
 
-The anchor MUST be written only after the WAL flush it describes. It may lag WAL but MUST NEVER lead it.
+## 17. Flow control and WindowUpdate
 
-Anchor replacement MUST use write-temp, file flush, atomic rename/replace and directory metadata flush where required for crash durability.
+Logical `payload_charge(batch) = Σ len(Event.payload)`.
 
-On recovery, the anchor's sequence/hash MUST match WAL exactly; recovery scans forward.
+`window_events` counts transmitted events not cumulatively ACKed; `window_bytes` counts their payload charge. Metadata/scope/protobuf/HTTP framing do not contribute to these logical counters but remain bounded by message caps.
 
-Sender pruning ordering is:
+Negotiated `ServerHello.window_events/window_bytes` define maxima. `WindowUpdate` MAY only reduce or restore current windows within those negotiated maxima. Values larger than negotiated maxima are `MALFORMED_FRAME`.
 
-`validate ACK → durably persist ACK anchor → only then make WAL <= ACK eligible for pruning`
+A `WindowUpdate` value of zero is legal and means pause that dimension; it MUST NOT close the stream. Heartbeats and clock probes remain allowed while event flow is paused.
 
-Pruning MUST NOT remove evidence still required by unresolved idempotency, quarantine, gap, epoch or settlement state.
+Pressure policy is backpressure, then stop new clients/miners before accepted work is endangered, then fail closed when durable admission cannot continue.
 
-## 17. Deterministic flow control and pressure
+## 18. Single-writer fencing
 
-`max_batch_payload_bytes` and `window_bytes` use **payload-only byte accounting**:
+Sender holds exclusive fence over `(sender_id,lane_id)` for every durable admission and epoch transition. Epoch is state protected beneath that fence; different-epoch processes cannot simultaneously admit.
 
-`payload_charge(batch) = Σ len(Event.payload)`
+Receiver permits at most one active stream per `(sender_id,lane_id)`. Second stream gets `STREAM_ALREADY_ACTIVE`.
 
-Scope bytes, event metadata, protobuf tags, HTTP/2 framing and gRPC framing do not contribute to these two logical counters. They remain bounded by the full-message hard cap in Section 7.
+PostgreSQL implementations hold a stream-lifetime advisory/lease lock and serialize commits through durable row lock/CAS state.
 
-`window_events` counts events not yet cumulatively ACKed. `window_bytes` counts payload charge for those same unACKed transmitted events. Sender and receiver MUST compute the same counters using the rule above.
+## 19. Reconnect reconciliation precedence
 
-Heartbeats and clock probes MUST continue while event flow is window-blocked.
+Let `C` receiver committed sequence, `R` sender remembered ACK (0 if none), `T` sender durable tail and `E` sender earliest retained sequence. Let `same_receiver_id`, `same_incarnation`, `approved_epoch`, and common-sequence hash verification be independently known.
 
-Pressure response is alert → stop new client/miner connections before accepted work is endangered → fail closed if durable admission cannot continue.
+Conditions overlap, so implementations MUST evaluate in this exact order:
 
-## 18. Stream handshake and sender/receiver single-writer fencing
+1. receiver ID differs from pinned logical receiver → `RECEIVER_ID_CHANGED`;
+2. database incarnation differs → `RECEIVER_INCARNATION_CHANGED`;
+3. epoch is not the currently approved epoch → `EPOCH_NOT_APPROVED`;
+4. `C > T` → `SENDER_ROLLBACK`;
+5. `C < R` on the same receiver identity/incarnation → `RECEIVER_ROLLBACK`;
+6. any common sequence that must match has different hash → `SPLIT_LOG`;
+7. receiver needs sequence `C+1 < E` → `RECOVERY_GAP`;
+8. `C > R` and receiver chain at `C` is verifiable from retained/durable sender evidence → `ADOPT_ACK` (durably remember C/hash, then continue);
+9. `C > R` but sender cannot verify receiver hash → `SPLIT_LOG`;
+10. `C == R` with matching chain state → `RESUME` from `C+1`.
 
-A sender MUST hold an exclusive local or external fence over **`(sender_id,lane_id)`**, not over the epoch. The active epoch and every epoch transition are state protected beneath that lane-wide fence. Two processes using different epochs for the same sender/lane MUST NOT both durably admit work.
+At bootstrap (`C=R=0`) there is no remembered ACK hash. Receiver's `committed_chain_hash` MUST equal locally computed `chain[0]` genesis for the approved epoch; otherwise `SPLIT_LOG`.
 
-The receiver MUST allow at most one active stream per `(sender_id,lane_id)`. CoreDRP/1 uses first-writer-wins: a second stream receives `STREAM_ALREADY_ACTIVE`.
-
-A PostgreSQL receiver MUST additionally hold a lifetime advisory/lease lock for the stream and serialize every commit with a row lock or equivalent compare-and-swap on durable stream state.
-
-## 19. Reconnect reconciliation
-
-Let `C` = receiver committed sequence, `R` = sender remembered ACK or zero, `T` = sender durable tail, and `E` = sender earliest retained sequence. Sequence comparisons are within one approved epoch.
-
-| Condition | Result |
-|---|---|
-| `C == R` and hashes match | resume/replay from `C+1` |
-| `C > R`, `C <= T`, sender verifies receiver hash | lost ACK; durably adopt receiver ACK then continue |
-| `C < R` on same receiver incarnation | `RECEIVER_ROLLBACK`; stop |
-| `C > T` | `SENDER_ROLLBACK`; stop |
-| receiver requires sequence `< E` | `RECOVERY_GAP`; stop |
-| common sequence hash differs | `SPLIT_LOG`; stop |
-| different unapproved epoch | `EPOCH_NOT_APPROVED`; stop |
-| receiver database incarnation changed | explicit restore/replacement reconciliation; never choose longest history |
-
-No best-effort fallback exists.
-
-A restored/promoted receiver database that might have lost ACKed transactions MUST mint a fresh database incarnation before serving CoreDRP.
+No best-effort longest-history selection exists.
 
 ## 20. ACK semantics
 
-ACK means the receiver's profile effects, required exact raw/quarantine evidence, chain head, committed sequence and committed hash all durably committed.
+ACK means profile effects, required evidence, committed sequence/hash and relevant checkpoint state durably committed.
 
-ACKs MUST be monotonic. Equal duplicate ACK is valid. Lower ACK on the same receiver incarnation is `RECEIVER_ROLLBACK`.
+ACK is cumulative and monotonic. Equal duplicate ACK is valid. Lower ACK on same receiver identity/incarnation is rollback evidence.
 
-An ACK MUST NOT advance beyond sender durable tail and its hash MUST equal the sender's locally computed chain at that sequence.
+ACK cannot exceed sender durable tail and its hash must match sender evidence at that sequence.
 
-`Ack.committed_at_unix_ms` is operational metadata only. It MUST NOT be used as clock evidence, completeness evidence, event time, payout time or checkpoint proof.
-
-Commit-success/ACK-loss is normal and follows Section 19.
+`committed_at_unix_ms` is operational metadata only and MUST NOT contribute to event time, clock, payout or completeness proof.
 
 ## 21. Receiver transaction semantics
 
-After complete batch validation, a conforming receiver transaction MUST atomically:
+After complete batch verification, one durable transaction:
 
-1. set/verify required durability policy;
-2. lock current stream state;
-3. validate epoch/sequence/chain head and inherited temporal/checkpoint floor;
-4. validate profile semantics and legal event/lane/scope combination;
-5. write exact evidence/event identity and application/profile effects;
-6. write any explicitly authorized quarantine/gap records;
-7. advance committed sequence/hash;
-8. update checkpoint/completeness state;
-9. COMMIT.
+1. enables/verifies required durability;
+2. locks stream state;
+3. validates receiver identity/incarnation, epoch, expected sequence/hash and temporal floors;
+4. validates event placement and profile semantics;
+5. writes exact evidence/application effects;
+6. writes explicitly authorized quarantine/gap records;
+7. advances committed sequence/hash;
+8. updates checkpoint/completeness state;
+9. commits.
 
-Anything fails → ROLLBACK → no ACK.
+Any failure rolls back and sends no ACK.
 
-Miningcore MUST NOT route ordinary CoreDRP ingestion through the legacy receiver recovery-journal fallback.
+Miningcore ordinary CoreDRP ingest MUST NOT use the legacy receiver recovery-journal fallback.
 
-## 22. Epoch transitions and inherited completeness floor
+## 22. Initial epochs, normal transitions and exceptional abandonment
 
-A new epoch is permitted only after a durable administrative transition records:
+### Initial epoch
 
-`old_epoch + final_sequence + final_chain_hash + old_last_event_time + old_last_trusted_checkpoint + inherited_temporal_floor → new_epoch + new_genesis + lane + operator + reason + timestamp`
+First-ever epoch for `(sender_id,lane_id)` requires durable `INITIAL_EPOCH_APPROVAL` before bootstrap handshake. Approval binds sender UUID, lane, initial epoch UUID, computed genesis hash, initial temporal/checkpoint floor, operator/authority, reason and timestamp. The contract-binding digest is attached after successful bootstrap negotiation and becomes immutable for that epoch.
 
-The transition is performed while the sender retains its `(sender_id,lane_id)` writer fence.
+### Normal epoch transition
 
-For a continuing lane:
+Normal retirement is allowed only when all old durable history is replicated:
 
-`new_epoch.temporal_floor = max(old_last_event_time, old_last_trusted_checkpoint, inherited_temporal_floor)`
+`receiver_committed == sender_remembered_ACK == sender_durable_tail == transition.final_sequence`
 
-The first new-epoch event MUST have `event_time_unix_ms >= temporal_floor`, and every event class covered by the inherited checkpoint MUST have `event_time_unix_ms > old_last_trusted_checkpoint`.
+and final hashes agree.
 
-A new epoch MUST NOT make `PayoutSafeThrough` or `SafePruneThrough` regress or permit later history to introduce covered work at/before an already-proven boundary.
+Transition records old epoch/final sequence/hash/last event/checkpoint/floor → new epoch/genesis plus operator/reason/time. The lane writer fence is retained through transition.
 
-Retired epoch UUIDs are permanent tombstones and MUST survive event pruning. A retired epoch MUST NEVER become current again.
+### Exceptional epoch abandonment
 
-At sequence `2^63-1`, an approved epoch transition is mandatory; wrapping is forbidden.
+If the old epoch cannot drain, normal transition is forbidden. An operator MAY use explicit `EXCEPTIONAL_EPOCH_ABANDON` only after durably recording the abandoned suffix `(old_epoch, first_missing_sequence..old_durable_tail, neighbouring time bounds, final known chain evidence)` as an unresolved completeness/recovery gap. That gap retains normal payout/pruning consequences until reconciled or waived. Accepted-but-unreplicated events MUST NEVER disappear merely because an epoch is retired.
 
-## 23. Error model and wire disposition
+New temporal floor is `max(old_last_event_time, old_last_trusted_checkpoint, inherited_floor)`. Covered new events are strictly greater than inherited checkpoint floor.
 
-Every protocol error has a numeric code and normative disposition in `docs/coredrp-v1-errors.md`.
+Retired epoch UUIDs are permanent tombstones. At `2^63-1`, drain/transition is mandatory; no wrapping.
 
-Disposition classes are `STREAM_RETRYABLE`, `OPERATOR_INTERVENTION`, `PERMANENT_CONFIGURATION`, and `EVENT_QUARANTINABLE`.
+## 23. Error model
 
-`ProtocolError.disposition` on the wire is **informational redundancy only**. The registry is authoritative. A receiver MUST transmit the registry value. A peer that receives a disposition that disagrees with the registry MUST treat the frame as `MALFORMED_FRAME` and MUST NOT use the contradictory wire value to weaken handling.
+`docs/coredrp-v1-errors.md` is the normative code/disposition registry. Wire disposition is redundant and mismatch is `MALFORMED_FRAME`.
 
-## 24. Quarantine and immutable rejected-event progression
+`EVENT_QUARANTINABLE` is reserved for correctly placed, Core-valid events whose profile payload semantics are invalid. Structural, placement, authorization, rollback, epoch, hash and checkpoint-proof failures are never quarantinable.
 
-Quarantine is allowed only when Core structure, sequence, authorization, legal event identity and chain integrity are valid and profile semantics are invalid.
+## 24. Quarantine progression
 
-A rejected durable event is immutable. "Correction" never means rewriting sequence `k`; it means correcting receiver validator/configuration so the same bytes become valid, or using an explicit operator action.
+Rejected event bytes are immutable.
 
-Normative quarantine progression is:
+1. batch containing invalid payload rolls back;
+2. sender retains exact WAL bytes;
+3. operator approves quarantine for exact sender/lane/epoch/sequence/type/relay-ID/chain hash + expected state version;
+4. sender retransmits identical event bytes;
+5. receiver re-verifies history/identity and atomically writes quarantine evidence plus watermark;
+6. ACK may then advance.
 
-1. receiver rejects sequence `k`; batch rolls back and no receiver durable progress passes `k`;
-2. sender retains the exact event in WAL;
-3. operator durably authorizes quarantine for exact `(sender,lane,epoch,sequence,event_type,relay_event_id,chain_hash)` plus expected state version;
-4. sender retransmits the **same immutable event bytes**;
-5. receiver re-verifies exact chain/event identity and atomically stores quarantine evidence plus the advanced watermark;
-6. only then may ACK advance through `k`.
+Changing the event is never a repair. Validator/config correction may allow the same bytes to validate normally.
 
-Never quarantinable: chain mismatch, sequence gap, malformed ordering/frame, split history, sender/receiver rollback, impossible/unapproved epoch, unauthorized scope, unknown/unadvertised event type, or checkpoint backdating.
+Quarantine evidence retains exact payload/event bytes, hashes, validator/profile version, scope contract digest, reason, operator, time and idempotency audit.
 
-A quarantine record retains sender/lane/epoch/sequence, relay ID, exact original bytes, payload/chain hashes, event type/scope, validator/profile version, semantic contract digest, rejection reason, operator/timestamp, idempotency key and state version.
+## 25. Gap semantics
 
-## 25. Core completeness-gap records
+Core gap records include scope/lane/epoch, sequence range, conservative neighbouring time bounds, classification, state and immutable audit provenance.
 
-Core owns the existence/lifecycle of a gap; profiles own consequences.
+Missing sequence timestamps are not interpolated. Unknown coverage remains open-ended from the last trusted boundary until later proof closes it.
 
-A gap records scope, lane, epoch, sequence/range, conservative neighbouring event-time bounds, classification, resolution state and immutable audit provenance.
+Resolution is `RESOLVED_RECONCILED` or `RESOLVED_WAIVED`. Waiver records accepted uncertainty; it never rewrites history as complete.
 
-If time coverage cannot be proven, the interval is conservative/open-ended from the last trusted boundary. Missing sequences MUST NOT be assigned false precision by interpolation.
+Exceptional epoch abandonment MUST create a gap before the old epoch can be retired.
 
-Resolution states are `RESOLVED_RECONCILED` and `RESOLVED_WAIVED`. Waiver records accepted uncertainty; it does not rewrite history as complete.
+## 26. Completeness checkpoints
 
-## 26. Completeness checkpoints and immutable coverage set
+Core event `0x0001` is CompletenessCheckpoint. Mining uses lane-global checkpoints with empty Event.scope.
 
-Core event `0x0001` is CompletenessCheckpoint.
+Covered scopes derive from the persisted epoch scope-contract set plus temporal membership/mode state effective at the checkpoint boundary, never from mutable current transport authorization.
 
-Mining Profile v1 uses lane-global checkpoints: enclosing Event.scope MUST be empty.
+Checkpoint payload `complete_through_unix_ms` equals enclosing event time exactly.
 
-A checkpoint's covered Mining scopes are determined from the **persisted epoch contract scope set plus temporal membership effective at the checkpoint boundary**, not from current transport authorization. Historical checkpoint meaning MUST NOT change when certificate/authorization policy changes later.
+Lane 0 = PayoutFence; lane 1 = CriticalCheckpoint.
 
-The payload `complete_through_unix_ms` MUST equal enclosing `Event.event_time_unix_ms`.
+Idle periodic checkpoints are required.
 
-Lane 0 interprets it as PayoutFence; lane 1 as CriticalCheckpoint.
+## 27. Anti-backdating
 
-Idle periodic checkpoints are REQUIRED to prove absence of accepted events during quiet intervals.
+After checkpoint `T`, every later covered event in that epoch or any approved successor epoch MUST have `event_time_unix_ms > T`.
 
-## 27. Checkpoint anti-backdating
+Sender enforces before durable admission; receiver independently verifies against durable inherited checkpoint floor.
 
-Once a valid checkpoint boundary `T` is sequenced, every later event class covered by that checkpoint MUST have event time `> T`, including after an epoch transition.
+Violation is `CHECKPOINT_BACKDATED_EVENT`, non-quarantinable.
 
-Sender enforces before durable admission; receiver independently verifies against the inherited durable checkpoint floor.
+## 28. Event-time assignment
 
-Violation is `CHECKPOINT_BACKDATED_EVENT` and is never quarantinable.
+Single-consumer lane sequencer assigns event time. Within epoch event times do not decrease; successor epochs inherit Section 22 floors.
 
-## 28. Event-time assignment across epochs
+Clock jitter may be clamped monotonically only within effective `maxClockStep`. Larger forward/backward wall-clock step makes local clock BAD.
 
-Event time is assigned inside the single-consumer lane sequencer.
+Mining share Created equals Core event time and receiver does not rewrite it.
 
-Within one epoch, assigned event times MUST NOT decrease. Across an approved epoch transition, the new epoch MUST inherit Section 22's temporal floor; it does not reset time ordering.
+## 29. Clock probe mathematics and deterministic sample selection
 
-Minor local clock jitter MAY be clamped only within configured `maxClockStep`. A forward/backward step beyond it makes local clock BAD.
+For receiver send `t1`, sender receive `t2`, sender send `t3`, receiver receive `t4`, reject `t3<t2` or negative/non-sensical elapsed durations.
 
-Ordinary Mining share Created is Core event time; receiver MUST NOT replace it with receipt time.
+Conservative sender-minus-receiver offset interval:
 
-All relayed event classes obey negotiated/profile future-time bounds.
+`L = t3 - t4`
 
-## 29. Clock probe mathematics
+`U = t2 - t1`
 
-Clock probes are authenticated and bound to the active stream.
+Round-trip network uncertainty score:
 
-For receiver transmit `t1`, sender receive `t2`, sender transmit `t3`, receiver receive `t4`, reject `t3 < t2`.
+`rtt = (t4 - t1) - (t3 - t2)`.
 
-Without assuming symmetric delay, sender-minus-receiver offset is bounded by `[t3-t4, t2-t1]`; interval width is uncertainty.
+Only fresh authenticated probes whose processing duration is within policy are candidates. The active clock observation is the fresh candidate with minimum non-negative `rtt`; ties choose the latest `t4`. Implementations MUST NOT intersect offset intervals sampled at different times because the physical offset may have changed.
 
-Receiver MUST use best/minimum-RTT observations over a rolling window, expire stale evidence, cap sender probe-processing duration, prevent active probe-ID reuse and use a monotonic local clock to detect receiver wall-clock steps.
+For permitted skew `S`:
 
-The midpoint/symmetric-delay estimate MUST NOT be used as the financial safety bound.
+- GOOD iff `L >= -S` and `U <= +S`;
+- BAD iff `U < -S` or `L > +S`;
+- UNKNOWN otherwise (interval overlaps the allowed boundary or no fresh usable sample exists).
 
-## 30. Clock health, grace and recovery
+Midpoint/symmetric-delay estimates MUST NOT drive financial safety.
 
-Local clock state is GOOD/BAD. Remote bound state is GOOD/BAD/UNKNOWN.
+## 30. Clock policy aggregation, grace and recovery
 
-- local BAD → stop covered admission and checkpoints;
-- remote BAD → stop covered admission and checkpoints;
-- remote UNKNOWN + local GOOD + grace active → admission MAY continue; trusted checkpoints MUST NOT advance;
-- remote UNKNOWN + grace expired → stop covered admission;
-- remote GOOD + local GOOD → normal.
+One sender/lane may carry multiple scopes. Lane admission/checkpoint safety uses the strictest effective policy among all active covered scope contracts:
 
-Grace preserves ingestion only; `PayoutSafe` cannot advance beyond the last boundary proven before UNKNOWN.
+- permitted skew = minimum;
+- `maxClockStep` = minimum;
+- probe processing maximum = minimum;
+- evidence expiry = minimum;
+- UNKNOWN grace = minimum;
+- probe interval = minimum (probe at least as frequently as every active scope requires).
 
-Recovery from BAD requires trusted UTC to reach/pass durable last event time plus at least three fresh good remote probes spanning at least one probe interval.
+Local BAD or remote BAD stops covered admission/checkpoint advancement. Remote UNKNOWN + local GOOD during grace MAY continue admission but MUST NOT advance trusted checkpoints. Grace expiry stops admission. GOOD+GOOD is normal.
 
-Mining Profile v1 defaults: skew 2000 ms; `maxClockStep` 250 ms; probe interval 5 s; probe processing max 250 ms; evidence expiry 15 s; UNKNOWN grace 120 s. Stricter deployments are allowed. Looser values change the Mining semantic-contract digest.
+Recovery from BAD requires trusted UTC reaching/passing durable last event time plus at least three fresh GOOD probes spanning at least one effective probe interval.
 
-## 31. Mining scope, payload and numeric semantics
+Default Mining parameters: skew 2000 ms; max step 250 ms; probe interval 5s; processing max 250ms; evidence expiry 15s; UNKNOWN grace 120s. Looser scope values change that scope's immutable semantic digest.
 
-Mining scope is exact ASCII `[A-Za-z0-9._-]{1,64}`; comparison is byte-exact/case-sensitive; no Unicode normalization/case folding.
+## 31. Mining scope and share semantics
 
-Lane 0 is SHARE; lane 1 is CRITICAL.
+Mining scope is exact ASCII `[A-Za-z0-9._-]{1,64}`, case-sensitive, no normalization.
 
-Mining share `created_unix_ms` MUST equal Core event time.
+Difficulty values are finite; NaN/infinities/negative zero invalid. Accepted-work `difficulty`, `actual_difficulty` and `network_difficulty` are strictly positive. `achieved_share_difficulty` may be zero only for explicitly informational cases.
 
-Difficulty fields MUST be finite. Negative zero, NaN and infinities are invalid. Difficulty quantities used for accepted work MUST be strictly positive. `achieved_share_difficulty` MAY be zero only when the profile explicitly identifies the event as informational rather than accepted work.
+Mining share Created equals Core event time. Candidate field combinations obey Section 14.
 
-MiningShareEvent candidate-field combinations obey Section 14.
+## 32. Temporal membership and completeness mode
 
-## 32. Temporal sender membership and fail-closed completeness mode
+Membership and completeness mode are independent **temporal policy state**, not immutable scope-contract values.
 
-Membership intervals are half-open `[valid_from, valid_until)`. If `valid_until` exists it MUST be greater than `valid_from`.
+Membership intervals and completeness-mode intervals are half-open `[valid_from,valid_until)`, append-only/audited, with no overlap or ambiguity for the same subject/scope.
 
-For scope `Q` and boundary `T`:
+Completeness modes: `RELAY_REQUIRED` and `NO_RELAY_REQUIRED`. Missing/unknown mode fails closed.
 
-`RequiredSender(Q,T)` is a sender whose durable temporal membership for `Q` contains `T` and whose scope contract at `T` has `completeness_mode=RELAY_REQUIRED`.
+`RequiredSender(Q,T)` is a sender whose durable membership contains T when the durable mode schedule for Q at T is `RELAY_REQUIRED`.
 
-A scope with an empty/missing membership table is **not** automatically safe. Vacuous safety is permitted only when an explicit, durable, semantic-contract-bound `NO_RELAY_REQUIRED` policy was already effective for that scope/boundary.
+Empty membership is payout-safe only when an explicit durable `NO_RELAY_REQUIRED` interval covers T. Missing membership/mode configuration never creates vacuous safety.
 
-Membership start and end are both privileged actions. Membership history is append-only/audited. Transport revocation does not alter membership.
+Membership start/end and mode changes are privileged. Normal changes are future-effective beyond current safety frontier plus clock uncertainty. Retroactive changes require reconciliation/waiver and MUST NOT silently invalidate an already-proven frontier.
 
-A membership change MUST NOT retroactively invalidate an already-proven `PayoutSafeThrough`. Normal membership activation/end MUST therefore be future-effective beyond the current safety frontier and clock uncertainty. A retroactive change is allowed only through an explicit reconciliation/waiver action that proves historical completeness or records the accepted uncertainty before the change becomes effective.
+Ending a required sender without completeness through deactivation boundary creates unresolved gap unless waived.
 
-Ending a required sender without trusted completeness through the deactivation boundary creates an unresolved gap unless an explicit waiver is committed.
+## 33. PayoutSafe
 
-## 33. PayoutSafe and PayoutSafeThrough
+`PayoutSafe(Q,T)` requires:
 
-For Mining scope `Q` and boundary `T`, `PayoutSafe(Q,T)` is true only when:
+1. durable known completeness mode at T;
+2. if RELAY_REQUIRED, every `RequiredSender(Q,T)` has trusted lane-0 checkpoint evidence through required skew-adjusted boundary;
+3. each checkpoint used satisfied clock policy;
+4. no unresolved relevant recovery/completeness gap;
+5. no unresolved payout-significant quarantine;
+6. membership/mode/semantic-contract state relied on was durable before use;
+7. anti-backdating and epoch-floor invariants prevent later covered history at/before T.
 
-1. completeness mode for `Q,T` is durably known;
-2. if mode is `RELAY_REQUIRED`, every `RequiredSender(Q,T)` has trusted lane-0 checkpoint evidence through the required skew-adjusted boundary;
-3. every checkpoint used met the clock contract;
-4. no unresolved recovery/completeness gap can cover relevant work at/before `T`;
-5. no unresolved payout-significant quarantine covers the interval;
-6. membership and semantic contracts used in the proof were durable before use;
-7. anti-backdating plus inherited epoch floor prevent later valid history from introducing covered work at/before `T`.
+`PayoutSafeThrough(Q)` is greatest durably proven T and is monotonic.
 
-`PayoutSafeThrough(Q)` is the greatest durably proven `T` for which `PayoutSafe(Q,T)` holds under the immutable evidence/state used to advance the frontier. It is monotonically nondecreasing.
+With symmetric maximum skew S, peer completeness for block timestamp B requires at least `B+2S` unless a tighter interval proof is demonstrably more conservative.
 
-For cross-sender completeness with symmetric maximum trusted skew `S`, a block timestamp `B` requires peer completeness at least `B+2S`, unless a tighter per-sender interval proof is demonstrably more conservative.
-
-PPS and SOLO are not payout-fence gated. Direct block submission is never gated on remote completeness.
+PPS/SOLO are not fence-gated; direct submission is never remote-gated.
 
 ## 34. SafePruneThrough
 
-`SafePruneThrough(Q)` is the greatest boundary through which destructible evidence may be removed without invalidating any required current/future proof. It MUST NOT exceed `PayoutSafeThrough(Q)` for payout-reconstruction evidence and is monotonically nondecreasing.
+`SafePruneThrough(Q)` is greatest boundary through which destructible evidence may be removed without invalidating required proofs. For payout evidence it never exceeds `PayoutSafeThrough(Q)` and is monotonic.
 
-Discovery that an earlier safety decision was wrong is a safety incident, not permission to silently move a frontier backward after evidence destruction.
+Never prune epoch approvals/tombstones, temporal floors, chain/ACK/receiver anchors, membership/mode history, gap/quarantine/waiver/override audits or still-required settlement evidence.
 
-Never prune epoch tombstones, temporal floors, chain/ACK anchors, membership history, unresolved/resolved gap/quarantine audit records, override records or settlement evidence still required by a profile.
+Safety discovery after pruning is an incident, not permission to silently move frontiers backward.
 
-## 35. Mining scheme consequences and deterministic cross-sender ordering
+## 35. Scheme behavior and canonical cross-sender order
 
-Miningcore integration rules:
+Miningcore integration:
 
-- PPLNS/PPLNSBF: settlement requires PayoutSafe; prune through `min(scheme cutoff, SafePruneThrough)`;
-- PROP: settlement requires PayoutSafe; prune through `min(round cutoff, SafePruneThrough)`;
-- custodial SOLO: payout is not fence-gated, but winning-miner share deletion is bounded to `created <= min(block.Created, SafePruneThrough)`;
-- PPS: per-share accounting is not fence-gated and follows independent accounting retention;
-- direct-coinbase SOLO: receiver/fences MUST NEVER gate local `submitblock`.
+- PPLNS/PPLNSBF settlement requires PayoutSafe; prune through `min(scheme cutoff, SafePruneThrough)`;
+- PROP likewise with round cutoff;
+- custodial SOLO payout not fence-gated; winning-share deletion only through `min(block.Created, SafePruneThrough)`;
+- PPS accounting not fence-gated and follows its retention contract;
+- direct-coinbase SOLO never waits for receiver/fence.
 
-For any mining accounting operation requiring a total order across senders, including PPLNS/PPLNSBF boundary selection, the order is ascending by:
+Canonical cross-sender accounting order:
 
-1. `event_time_unix_ms`;
-2. sender UUID RFC 9562 bytes lexicographically;
+1. event time;
+2. sender UUID bytes;
 3. sequence;
-4. `relay_event_id` RFC 9562 bytes lexicographically.
+4. relay event UUID bytes.
 
-Database physical/insertion order MUST NOT break ties. Ordering policy value `1` in Section 12 means exactly this ordering.
+This is a deterministic **accounting order**, not proof of physical cross-sender arrival causality. Clocks may differ within permitted bounds. Database insertion order MUST NOT break ties.
 
 ## 36. Direct candidate independence
 
-A submitting edge MUST durably persist exact direct-candidate/settlement evidence locally before attempting `submitblock`.
+Submitting edge persists exact candidate/settlement evidence locally before `submitblock`. Recorder, critical-lane or completeness-fence failure never delays local submission.
 
-Recorder unavailability, critical-lane failure or stale PayoutFence MUST NOT delay local submission. Critical-lane delivery is evidence replication, not part of block-submission latency.
+Critical lane is durable evidence replication, not consensus-submission latency.
 
-## 37. PostgreSQL durability conformance
+## 37. PostgreSQL durability
 
-For a transaction advancing CoreDRP committed state:
+Transactions advancing CoreDRP committed state require PostgreSQL `fsync=on`, `SET LOCAL synchronous_commit=on` or stronger, no unlogged durable CoreDRP state, and atomic stream/effect commit.
 
-- PostgreSQL `fsync` MUST be enabled;
-- `SET LOCAL synchronous_commit = on` or stronger is REQUIRED;
-- unlogged tables MUST NOT hold durable CoreDRP ledger/state;
-- receiver effects and stream watermark MUST commit atomically.
-
-If an HA target may be promoted without every ACKed transaction, promotion MUST mint a new receiver database incarnation and invoke reconciliation before serving traffic.
+Standby promotion that may omit ACKed transactions creates a new database incarnation before serving CoreDRP and invokes Section 19 reconciliation.
 
 ## 38. Failure semantics
 
-**PostgreSQL unavailable:** no ACK for uncommitted data; apply backpressure; sender keeps spooling; report `RECEIVER_DURABILITY_UNAVAILABLE` with retryable disposition.
+PostgreSQL unavailable: no ACK, backpressure, sender spools, retryable durability error.
 
-**Sender disk/fsync failure:** stop new durable admission; never accept only in memory.
+Sender disk/fsync failure: stop durable admission.
 
-**Corrupted WAL middle record:** fail closed; never skip or automatically create a new epoch.
+Middle WAL corruption: fail closed; never skip/create epoch automatically.
 
-**Commit succeeds, ACK lost:** Section 19 lost-ACK path.
+Commit/ACK loss: normal Section 19 path.
 
-**Duplicate sender:** lane-wide sender fence prevents admission; receiver also rejects second stream.
+Duplicate sender/receiver: fencing prevents concurrent ownership.
 
-**Duplicate receiver:** DB/advisory fencing prevents concurrent ownership.
+Split history: operator intervention.
 
-**Split history:** `SPLIT_LOG`, operator intervention.
+Partial batch: rollback all current batch effects.
 
-**Partial batch failure:** whole batch rolls back; no ACK.
+Epoch cannot be used to discard accepted-but-unreplicated work; Section 22 drain/gap rule applies.
 
 ## 39. Heartbeats, drain and ChainProbe
 
-Client/server heartbeats are direction-specific. Heartbeat timestamps and fields MUST NOT contribute to clock/completeness proof.
+Heartbeats are direction-specific operational traffic and never clock/completeness proof.
 
-A graceful sender/receiver MAY send Goodbye. It is advisory; durable state remains authoritative.
+Goodbye is advisory; durable stream state is authoritative.
 
-ChainProbe is authenticated local-admin diagnostic only, rate-limited, never healthy-path flow. `count` is `1..256`; each returned hash is 32 bytes; results never mutate durable stream state.
+ChainProbe is authenticated, local-admin-triggered, rate-limited diagnostic traffic only. Count `1..256`; results never mutate stream state.
 
-## 40. Monetary and numeric representation
+## 40. Monetary and Miningcore accounting projection semantics
 
-Financial coin-unit decimal values use `Decimal38Scale24.canonical`.
+Financial coin-unit decimals use `Decimal38Scale24.canonical`: `0` or `[1-9][0-9]{0,13}` optionally followed by `.` plus 1..24 digits whose last digit is nonzero. No sign/exponent/whitespace/leading zero/trailing fractional zero/NaN/infinity. Values < 100000000000000 and <=38 total digits. Positive-only fields reject zero. Monetary values MUST NOT use `double`.
 
-Grammar: `0` or `[1-9][0-9]{0,13}` optionally followed by `.` and `1..24` decimal digits with final fractional digit non-zero. No sign, exponent, whitespace, leading zero, trailing fractional zero, NaN or infinity.
+For `MiningcoreAccountingShareEvent`:
 
-Values are `<100000000000000`, at most 38 total decimal digits, scale at most 24. Positive-only fields reject `0`. `double` MUST NOT represent monetary amounts.
+- `primary` is REQUIRED;
+- primary role MUST be SINGLE or PARENT; UNSPECIFIED/AUXILIARY primary is invalid;
+- SINGLE requires `paired` absent;
+- PARENT requires `paired` present and paired role AUXILIARY;
+- paired projection MUST have same miner, worker, session ID and `created_unix_ms` as primary; chain-specific height/difficulty/candidate fields MAY differ;
+- accounting IDs, when present, MUST be non-empty and primary/paired IDs MUST differ;
+- `reward_basis_satoshis`, when present, MUST be >=0;
+- `pps_calculated_amount`, when present, MUST parse canonically and requires non-empty `accounting_id`;
+- `preserve_created` MUST be true for every CoreDRP projection;
+- `block_only=true` requires `block_record_emitted=true` and `statistical_record_emitted=false`;
+- `statistical_record_emitted=true` implies `block_only=false`.
 
-Post-parse profile limits: miner 256 UTF-8 bytes, worker 128, user-agent 256, source IP 64, source 64, session ID 128, candidate kind 64, transaction-confirmation data 4096. Miningcore direct-recipient count <=256, address metadata <=128 UTF-8 bytes, scriptPubKey <=10000 bytes.
+Violations are `SEMANTIC_PAYLOAD_INVALID` and are quarantinable only because placement/history remain valid.
 
-## 41. Miningcore Bitcoin evidence consistency and candidate state
+Post-parse limits: miner 256 UTF-8 bytes, worker 128, user agent 256, source IP 64, source 64, session 128, candidate kind 64, confirmation data 4096, direct recipients <=256, address metadata <=128, scriptPubKey <=10000.
 
-Bitcoin `block_hash` and `coinbase_txid` are exactly 32 bytes in canonical RPC/display digest order: decoding the canonical 64-character RPC hex yields the transmitted bytes.
+## 41. Bitcoin evidence consistency, Merkle commitment and candidate state
 
-`serialized_block` is exact raw Bitcoin consensus serialization. `script_pub_key` is exact raw script bytes and is authoritative; optional address metadata MUST map to that script on the configured network.
+Bitcoin hashes are transmitted as 32 bytes in canonical RPC/display order. `serialized_block` is exact consensus serialization. Script bytes are authoritative; address strings are audit/display metadata that must map to the exact script on configured network.
 
-For BitcoinDirectCoinbaseCandidate the receiver MUST perform self-consistency validation before durable semantic acceptance:
+Receiver MUST use a consensus-compatible Bitcoin parser/library or equivalent verified implementation and before durable acceptance MUST:
 
-1. parse the serialized block using Bitcoin consensus serialization and reject malformed/trailing bytes;
-2. compute `SHA256d(header80)`, reverse digest bytes to canonical display order, and require equality with `block_hash`;
-3. extract transaction 0, require it is coinbase, compute its non-witness txid in canonical display order, and require equality with `coinbase_txid`;
-4. require the coinbase height commitment to equal `block_height` where BIP34 height commitment is mandatory for the configured network/height;
-5. require `miner_script_pub_key` and `miner_reward_satoshis` to match the designated miner coinbase output;
-6. require the `DirectRecipient` multiset `(script_pub_key, amount_satoshis)` to match the designated additional direct-pay coinbase outputs exactly; optional addresses must validate to their scripts;
-7. require every coinbase output to be accounted for by the profile's miner/recipient classification and require `gross_reward_satoshis` to equal the sum of coinbase output values;
-8. reject negative amounts, overflow or contradictory duplicate classifications.
+1. parse entire block with no malformed/trailing bytes;
+2. compute `SHA256d(header80)`, display-order it, require `block_hash`;
+3. parse all transactions, require tx0 coinbase;
+4. compute non-witness txid of coinbase and require `coinbase_txid`;
+5. compute txid Merkle root of **all** transactions using Bitcoin duplicate-last pairing and require exact header merkle root;
+6. when witness serialization/commitment rules apply, compute witness Merkle root with coinbase wtxid treated as zero, extract the 32-byte coinbase witness reserved value, locate the BIP141 witness-commitment output (`OP_RETURN 0x24 aa21a9ed <32>`; highest matching output index is authoritative) and require `SHA256d(witness_root || reserved_value)` equality;
+7. verify BIP34 height commitment where mandatory;
+8. verify miner output script/value;
+9. verify declared DirectRecipient multiset exactly matches designated direct-pay outputs;
+10. permit separately identified zero-value consensus commitment outputs (including BIP141 witness commitment) outside the miner/direct-recipient set while still counting every coinbase output in gross reward;
+11. require gross reward equals sum of all coinbase outputs and reject negative/overflow/contradictory classification.
 
-The chain proves evidence immutability, not correctness; these semantic checks make the evidence internally auditable.
+Chain proves immutability, not correctness; these checks bind header, transaction body, witness data and payout evidence together.
 
-Bitcoin serialized block profile cap is 4,000,000 bytes. Candidate ID is a 16-byte UUIDv7. Initial candidate state MUST be PREPARED.
+Bitcoin serialized-block profile cap is 4,000,000 bytes. Candidate ID is UUIDv7. Initial candidate state PREPARED.
 
-Allowed state transitions:
+Allowed transitions: PREPARED → SUBMITTED_UNCERTAIN/OBSERVED_ACTIVE/REJECTED/QUARANTINED; SUBMITTED_UNCERTAIN → itself/OBSERVED_ACTIVE/REJECTED/QUARANTINED; REJECTED → OBSERVED_ACTIVE only on later authoritative chain proof, otherwise terminal except quarantine; OBSERVED_ACTIVE → QUARANTINED only for evidence investigation; QUARANTINED terminal except explicit audited reconciliation outside this graph.
 
-- PREPARED → SUBMITTED_UNCERTAIN, OBSERVED_ACTIVE, REJECTED, QUARANTINED
-- SUBMITTED_UNCERTAIN → SUBMITTED_UNCERTAIN, OBSERVED_ACTIVE, REJECTED, QUARANTINED
-- REJECTED → OBSERVED_ACTIVE only when later authoritative chain observation proves active; otherwise terminal except QUARANTINED
-- OBSERVED_ACTIVE → QUARANTINED only for evidence-integrity/operator investigation
-- QUARANTINED terminal unless explicit audited reconciliation records a replacement state outside this graph.
-
-`submission_attempts` never decreases; `definitive_misses <= submission_attempts`; `last_attempt` absent iff attempts are zero.
+Attempts never decrease; definitive misses <= attempts; last-attempt absent iff attempts zero.
 
 ## 42. Privileged actions and canonical ADMIN encoding
 
-Privileged action type IDs are globally fixed:
+Assigned action IDs:
 
-- `0x0001` Core quarantine-and-advance
-- `0x0002` Core gap reconciliation
-- `0x0003` Core gap waiver
-- `0x0004` Core epoch-transition approval
-- `0x0101` Mining membership start
-- `0x0102` Mining membership end
-- `0x0103` Mining completeness-mode change
-- `0x0104` Mining settle-without-fence override
+- `0x0001` quarantine-and-advance
+- `0x0002` gap reconciliation
+- `0x0003` gap waiver
+- `0x0004` normal epoch-transition approval
+- `0x0005` initial epoch approval
+- `0x0006` exceptional epoch abandon-and-transition
+- `0x0101` membership start
+- `0x0102` membership end
+- `0x0103` completeness-mode change
+- `0x0104` settle-without-fence override
 - `0x0201` Miningcore capability activation
 
-Action IDs MUST NOT be reused.
+ADMIN body TLV v1:
 
-Every admin request carries a client-generated idempotency UUID and expected state version. The mutation transaction atomically writes idempotency record and protected state change.
+`uint16_be(1)||uint16_be(field_count)||fields sorted by strictly increasing field_id`.
 
-Canonical request body `B` is TLV version 1:
+Field: `uint16_be(field_id)||uint32_be(value_len)||value_bytes`. No duplicate IDs. UUIDs use RFC bytes; integers fixed-width big-endian; strings/scopes exact validated bytes; absent optional fields omitted. JSON is never canonical digest input.
 
-`uint16_be(1) || uint16_be(field_count) || repeated(field)`
+Every request includes `1=idempotency_uuid(16)` and `2=expected_state_version(uint64)`.
 
-where fields are sorted by strictly increasing `field_id`, no duplicate IDs, and each field is:
+Normal epoch transition includes sender, lane, old epoch, final sequence/hash, new epoch, inherited temporal/checkpoint floors and reason. Receiver committed sequence/hash and sender durable tail/remembered ACK MUST be checked against the normal-drain condition in the same protected state transition.
 
-`uint16_be(field_id) || uint32_be(value_len) || value_bytes`.
+Initial epoch approval includes sender, lane, new epoch, genesis hash, initial temporal/checkpoint floor and reason; it has no old epoch/final sequence.
 
-Field values use the exact primitive encodings from Section 5: UUID = 16 RFC 9562 bytes; unsigned/signed integers = fixed-width big-endian stated by that action schema; scope/string = exact validated bytes without terminator. Optional absent fields are omitted. JSON is never canonical input to this digest.
+Exceptional abandonment includes sender/lane/old epoch, last receiver committed/ACKed sequence/hash, old durable tail, abandoned first/last sequence, conservative time bounds, new epoch/floors and reason; transaction MUST create the unresolved gap atomically with retirement approval.
 
-All actions include field `1=idempotency_uuid(16)` and field `2=expected_state_version(uint64_be)`.
-
-Core quarantine action additionally uses: `3=sender_uuid`, `4=lane(uint8)`, `5=epoch_uuid`, `6=sequence(uint64)`, `7=chain_hash(32)`, `8=reason_utf8`.
-
-Core gap reconciliation/waiver uses: `3=gap_uuid`, `4=resolution_reason_utf8`.
-
-Core epoch approval uses: `3=sender_uuid`, `4=lane(uint8)`, `5=old_epoch_uuid`, `6=final_sequence(uint64)`, `7=final_chain_hash(32)`, `8=new_epoch_uuid`, `9=inherited_temporal_floor(int64)`, `10=inherited_checkpoint_floor(int64)`, `11=reason_utf8`.
-
-Mining membership start/end uses: `3=scope`, `4=sender_uuid`, `5=effective_unix_ms(int64)`, `6=reason_utf8`.
-
-Mining completeness-mode change uses: `3=scope`, `4=effective_unix_ms(int64)`, `5=mode(uint8)`, `6=reason_utf8`.
-
-Mining settle-without-fence uses: `3=scope`, `4=block_or_settlement_id_bytes`, `5=reason_utf8`.
-
-Miningcore capability activation uses: `3=scope`, `4=capability_ascii`, `5=effective_unix_ms(int64)`, `6=reason_utf8`.
+Membership/mode actions include scope, effective time and reason; membership additionally includes sender UUID.
 
 `admin_digest = SHA256(ADMIN_DOMAIN || uint16_be(action_type) || uint32_be(len(B)) || B)`.
 
-Same idempotency key + same digest returns the original result. Same key + different digest is `IDEMPOTENCY_KEY_CONFLICT`. State-version mismatch is `ADMIN_ACTION_CONFLICT`.
+Same idempotency key + same digest returns original result; same key + different digest is conflict. State-version mismatch is `ADMIN_ACTION_CONFLICT`.
 
 ## 43. Security boundary
 
-mTLS authenticates peers and transport. Authorization is explicit per sender/lane/scope.
+mTLS authenticates peers and transport. Explicit authorization controls sender/lane/scope.
 
-The unkeyed SHA-256 chain detects accidental corruption, inconsistent history, replay and divergent branches when at least one trusted anchor survives. It is NOT independently tamper-proof against an attacker able to rewrite all history and anchors, and CoreDRP is not Byzantine consensus or proof that a compromised authenticated sender is truthful.
+The SHA-256 chain detects corruption, replay and divergent history when trusted anchors survive. It is not Byzantine consensus and does not make a compromised authenticated sender truthful. An attacker controlling all history/anchors can recompute an unkeyed chain.
 
-Applications needing total-storage-compromise resistance SHOULD add independently protected signed/HMAC anchors or external append-only transparency storage.
+Applications needing stronger storage-compromise resistance SHOULD use independently protected signed/HMAC anchors or external transparency storage.
 
-No 0-RTT application data is permitted.
+No 0-RTT application data.
 
 ## 44. Specification, compatibility and CI integrity
 
-Every normative text/source artifact MUST be valid UTF-8, contain no NUL/control corruption, and pass integrity checks.
-
 CI MUST verify:
 
-- UTF-8/text integrity;
-- exactly contiguous top-level sections 1..50, minimum normative size and terminal sentinel;
-- section cross-reference resolution;
-- protobuf compilation and linting;
-- Core ← Mining ← Miningcore dependency/name boundaries plus negative self-tests;
-- error enum ↔ error registry parity;
-- event-type allocation consistency;
-- all wire-visible messages, fields, oneofs, enums, numeric enum values, services/RPCs and reserved ranges against the compatibility baseline;
-- fixed domain tags;
-- positive/negative cryptographic vectors;
-- Mining/Miningcore semantic-contract source/digest vectors;
-- profile-aware semantic vectors including all declared negative cases;
-- reconnect, rollback, recovery-gap, quarantine, membership, epoch-floor and WAL crash-ordering state vectors;
-- independent C# UUID/hash/contract/ADMIN verification;
-- a TLA+ model that contains explicit crash/fault/reconnect/epoch/writer transitions plus a mutation/self-test capable of demonstrating invariant failure.
+- UTF-8/control-byte integrity, exact sections 1..50, minimum size and terminal sentinel;
+- protobuf compilation/lint, syntax/package identities, complete messages/fields/oneofs/enums/services/RPC/reserved baseline;
+- Core←Mining←Miningcore boundaries with negative self-tests;
+- error/event/metric registry consistency;
+- cryptographic, semantic-contract and ADMIN vectors;
+- positive and **executed** negative profile validators;
+- reconnect precedence including overlapping conditions, bootstrap and unapproved epoch;
+- WAL/idempotency, normal/exceptional epoch transition, writer fencing, membership/mode and clock-state vectors;
+- legacy and SegWit Bitcoin evidence vectors, txid Merkle validation and BIP141 witness commitment;
+- independent C# cryptographic/contract verification;
+- a TLA+ fault model with separate fault/detection transitions plus at least one deliberate unsafe mutation proven detectable.
 
-Deleted protobuf fields MUST reserve field number and SHOULD reserve name.
+Deleted protobuf fields reserve number and SHOULD reserve name.
+
+The compatibility checker MUST reject protobuf syntax/edition changes and unexpected services in any protocol/profile file, not only the Core file.
 
 ## 45. Normative safety invariants
 
 Machine-testable invariants include:
 
-`ACK_sequence <= receiver_durable_sequence`
+`ACK <= receiver durable <= sender durable tail`
 
-`sender_prune_sequence <= sender_durably_remembered_ACK`
+`prune <= durably remembered ACK`
 
-`common(sender,lane,epoch,sequence) => chain_hash identical`
+`same sender/lane/epoch/sequence => identical chain hash`
 
-`at_most_one_sender_writer(sender,lane)`
+`at most one sender writer(sender,lane)`
 
-`retired_epoch never becomes current again`
+`retired epoch never current`
 
-`new_epoch.temporal_floor >= max(old_last_event_time, old_last_trusted_checkpoint, old_temporal_floor)`
+`normal epoch transition => old receiver committed == old remembered ACK == old durable tail == final sequence`
 
-`checkpoint(T) => every later covered event in every later approved epoch has event_time > T`
+`exceptional epoch transition with abandoned suffix => unresolved gap exists before retirement`
 
-`unresolved_gap_at_or_before(T) => NOT PayoutSafe(T)`
+`new temporal floor >= max(old event time, old trusted checkpoint, old floor)`
 
-`unresolved_payout_quarantine_at_or_before(T) => NOT PayoutSafe(T)`
+`checkpoint(T) => every later covered event time > T`
 
-`unknown_membership_or_completeness_mode => NOT PayoutSafe`
+`unknown membership/mode => NOT PayoutSafe`
 
-`PayoutSafeThrough` monotonically nondecreasing
+`unresolved relevant gap/quarantine => NOT PayoutSafe`
 
-`SafePruneThrough <= PayoutSafeThrough`
+`PayoutSafeThrough monotonic`
 
-`SafePruneThrough` monotonically nondecreasing
+`SafePruneThrough <= PayoutSafeThrough` and monotonic
 
-`same caller_admission_key => same relay_event_id and same immutable admission`
+`same caller admission key + same admission digest within idempotency horizon => same relay event ID/admission`
 
-## 46. Protocol evolution
+`unexpected receiver ID/incarnation/rollback cannot clear remembered ACK evidence`
 
-CoreDRP/1 uses negotiated Core minors, profile versions, advertised event types and semantic-contract digests.
+## 46. Evolution
 
-A sender MUST NOT emit a type not accepted in the persisted epoch binding. Unknown/unadvertised types remain fatal even though protobuf preserves unknown fields.
+CoreDRP/1 evolves through negotiated Core minors, profile versions, event types and version-qualified scope contracts.
 
-Adding a safety-significant top-level frame alternative requires an explicitly negotiated compatible Core minor; protobuf unknown-field preservation alone is insufficient.
+Sender never emits a type absent from persisted epoch binding. Unknown/unadvertised types remain fatal even if protobuf preserves unknown fields.
 
-Event-type numbers, admin-action numbers, enum numeric values and protobuf field numbers are never reused after stable release. Compatibility baseline changes require explicit protocol review.
+Safety-significant top-level frame alternatives require explicit negotiated minor support.
 
-## 47. Out of scope for CoreDRP/1
+After stable release, event/admin/error/enum numbers and protobuf field numbers are never reused. Package and syntax declarations are compatibility-critical.
 
-CoreDRP/1 does not standardize receiver active/active HA across independent databases, automatic retroactive payout compensation, historical statistics rebuilding, remote-durable Stratum admission, Byzantine consensus against fully malicious authenticated senders/storage, or external standards governance.
+## 47. Out of scope
 
-## 48. Reference implementation requirements
+CoreDRP/1 does not standardize independent-database active/active receiver consensus, automatic retroactive payout compensation, historical statistics rebuilding, remote-durable Stratum admission, Byzantine consensus against malicious authenticated peers/storage, or global standards governance.
 
-Miningcore MUST:
+## 48. Miningcore reference requirements
 
-- preserve sender event time;
-- use dedicated CoreDRP ingest with no ordinary legacy recovery-journal fallback;
-- use `SET LOCAL synchronous_commit = on`;
-- enforce sender-lane single-writer ownership and receiver transactional/advisory fencing;
-- persist sender UUID mapping/ordinals without reuse;
-- make local durable admission retries idempotent before using `relay_event_id` as a financial effect key;
-- uniquely identify receiver share effects by `(poolid, senderordinal, relayeventid)` or equivalent partition-safe key;
-- use Section 35 total ordering whenever equal-time shares can affect a financial window;
-- expose completeness, gap, clock, spool, replay and quarantine metrics;
-- retain local direct-candidate evidence before `submitblock` and validate Section 41 self-consistency at the recorder.
+Miningcore MUST preserve sender event time; use dedicated CoreDRP ingest; enforce PostgreSQL durability and sender/receiver fencing; persist sender UUID mapping without reuse; use durable caller admission idempotency for retry-capable financial admissions; uniquely identify receiver share effects using relay event identity; use Section 35 canonical accounting order; expose the metric registry; persist direct candidate evidence before submitblock; and perform Section 41 full structural/Merkle/witness consistency checks centrally.
 
-## 49. Conformance-test requirements
+A Miningcore implementation MUST implement the Section 40 accounting validity matrix before applying financial projection effects.
 
-Before CoreDRP/1 is declared stable, the repository MUST contain and execute:
+## 49. Conformance corpus requirements
 
-- hash/genesis vectors for lanes 0, 1 and 255;
-- type `0xFFFF` boundary and out-of-range rejection;
-- empty payload/scope and max 65535-byte scope with exact preimage bytes;
-- sequence above `2^32`, sequence `2^63-1`, sequence-zero rejection;
-- negative event time and recognizable UUID byte-order trap;
-- contract-binding vectors using actual Mining/Miningcore semantic digests, including both `has_digest=1` and `has_digest=0` branches;
-- canonical ADMIN vectors for Core-owned actions;
-- semantically valid checkpoint, Mining, Miningcore-accounting, BitcoinDirectCoinbaseCandidate and CandidateStateUpdate examples;
-- malformed/invalid-combination profile vectors;
-- reconnect/rollback/recovery-gap cases;
-- WAL crash-ordering and local admission-idempotency cases;
-- cross-epoch temporal-floor and checkpoint cases;
-- duplicate sender/receiver fencing cases;
-- quarantine at representative batch positions;
-- membership/completeness-mode fail-closed cases;
-- deterministic cross-sender ordering tie cases.
+Before stable CoreDRP/1, repository tests MUST contain and execute:
 
-Hash-primitive vectors that jump directly to high sequence values MUST be labelled `crypto_only` and include an explicit synthetic previous-chain anchor; they MUST NOT be presented as reachable event history from genesis.
+- lanes 0/1/255, boundary event type, max/empty scope/payload and max/zero sequences;
+- UUID network-order trap and exact preimages;
+- version-qualified scope-contract bindings and profile-global-digest absence for Mining/Miningcore;
+- canonical ADMIN vectors including initial/normal/exceptional epoch actions;
+- reconnect precedence overlap cases, bootstrap genesis, receiver-ID/incarnation, unapproved epoch, unverifiable higher receiver ACK;
+- normal drain and exceptional abandonment gap cases;
+- admission digest + retention-horizon cases;
+- clock GOOD/BAD/UNKNOWN classification and multi-scope strictest-policy aggregation;
+- invalid placement separate from invalid payload;
+- Miningcore accounting SINGLE/PARENT+AUX valid and invalid matrices;
+- Bitcoin legacy and SegWit candidate vectors with all-transaction Merkle root and BIP141 witness commitment;
+- WAL crash ordering, quarantine positions, membership/mode fail-closed behavior and deterministic cross-sender ties;
+- formal-model unsafe mutation controls.
+
+Crypto-only high-sequence vectors MUST carry explicit synthetic previous-chain anchors and MUST NOT be described as reachable history.
 
 ## 50. Authorship
 
-CoreDRP — Core Durable Relay Protocol was originally designed and authored by **Rob Cooke** in 2026 and was originally developed for the Miningcore project.
+CoreDRP — Core Durable Relay Protocol was originally designed and authored by **Rob Cooke** in 2026 and originally developed for the Miningcore project.
 
-The canonical project is `https://coredrp.org` and the source repository is `https://github.com/NINJAK1DD/CoreDRP`.
+Canonical project: `https://coredrp.org`  
+Source repository: `https://github.com/NINJAK1DD/CoreDRP`
 
 <!-- COREDRP-SPEC-END:50 -->
