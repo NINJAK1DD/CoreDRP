@@ -13,12 +13,7 @@
     {"case_kind":"unknown_grace_delayed_update_not_restarted","already_unknown":true,"unknown_since_ms":1000,"now_ms":121000,"effective_unknown_grace_ms":120000,"expected_unknown_since_ms":1000,"expected_remaining_ms":0}
   ],
   "multi_scope_clock_cases":[
-    {"case_kind":"elementwise_min",
-     "scopes":[
-       {"skew":2000,"max_step":250,"probe_interval":5000,"processing_max":250,"evidence_expiry":15000,"unknown_grace":120000},
-       {"skew":1000,"max_step":500,"probe_interval":3000,"processing_max":100,"evidence_expiry":20000,"unknown_grace":60000}
-     ],
-     "expected":{"skew":1000,"max_step":250,"probe_interval":3000,"processing_max":100,"evidence_expiry":15000,"unknown_grace":60000}}
+    {"case_kind":"elementwise_min","scopes":[{"skew":2000,"max_step":250,"probe_interval":5000,"processing_max":250,"evidence_expiry":15000,"unknown_grace":120000},{"skew":1000,"max_step":500,"probe_interval":3000,"processing_max":100,"evidence_expiry":20000,"unknown_grace":60000}],"expected":{"skew":1000,"max_step":250,"probe_interval":3000,"processing_max":100,"evidence_expiry":15000,"unknown_grace":60000}}
   ],
   "producer_idempotency_cases":[
     {"case_kind":"same_uuid_different_scope_is_distinct","sender":"s","lane":0,"producer":"p","scope_a":"btc1","scope_b":"doge1","expected":"DISTINCT_NAMESPACES"},
@@ -33,6 +28,11 @@
     {"case_kind":"unknown_completeness_version","payout_scheme":1,"completeness_policy_version":3,"retention_policy_version":1,"cross_sender_ordering_policy":1,"admission_policy_version":3,"expected":"SEMANTIC_CONTRACT_MISMATCH"},
     {"case_kind":"unknown_retention_version","payout_scheme":1,"completeness_policy_version":2,"retention_policy_version":2,"cross_sender_ordering_policy":1,"admission_policy_version":3,"expected":"SEMANTIC_CONTRACT_MISMATCH"},
     {"case_kind":"unknown_order_policy","payout_scheme":1,"completeness_policy_version":2,"retention_policy_version":1,"cross_sender_ordering_policy":2,"admission_policy_version":3,"expected":"SEMANTIC_CONTRACT_MISMATCH"}
+  ],
+  "policy_staging_digest_vectors":[
+    {"case_kind":"membership_start","scope":"btc1","policy_generation":7,"effective_unix_ms":1788545000000,"policy_kind":1,"sender_id":"00112233-4455-6677-8899-aabbccddeeff","mode":null,"evidence_hex":"0001010004627463310100112233445566778899aabbccddeeff000001a06d96e240000000000000000007","canonical_body_hex":"00010006000100000004627463310002000000080000000000000007000300000008000001a06d96e2400004000000010100050000001000112233445566778899aabbccddeeff00060000002b0001010004627463310100112233445566778899aabbccddeeff000001a06d96e240000000000000000007","preimage_hex":"436f7265445250312d41444d494e01060000007800010006000100000004627463310002000000080000000000000007000300000008000001a06d96e2400004000000010100050000001000112233445566778899aabbccddeeff00060000002b0001010004627463310100112233445566778899aabbccddeeff000001a06d96e240000000000000000007","sha256":"6d1a8746d1dcf787ee56b49417c88a48458d61a01768031ecabd007fcfbecf9a"},
+    {"case_kind":"membership_end","scope":"btc1","policy_generation":7,"effective_unix_ms":1788545000000,"policy_kind":2,"sender_id":"00112233-4455-6677-8899-aabbccddeeff","mode":null,"evidence_hex":"0001020004627463310100112233445566778899aabbccddeeff000001a06d96e240000000000000000007","canonical_body_hex":"00010006000100000004627463310002000000080000000000000007000300000008000001a06d96e2400004000000010200050000001000112233445566778899aabbccddeeff00060000002b0001020004627463310100112233445566778899aabbccddeeff000001a06d96e240000000000000000007","preimage_hex":"436f7265445250312d41444d494e01060000007800010006000100000004627463310002000000080000000000000007000300000008000001a06d96e2400004000000010200050000001000112233445566778899aabbccddeeff00060000002b0001020004627463310100112233445566778899aabbccddeeff000001a06d96e240000000000000000007","sha256":"9852783ed4c64e0d9e4b576926aadee9cd140ae352bcb4587edb30295a55b1ee"},
+    {"case_kind":"mode_relay_required","scope":"btc1","policy_generation":7,"effective_unix_ms":1788545000000,"policy_kind":3,"sender_id":null,"mode":1,"evidence_hex":"00010300046274633100000001a06d96e24001010000000000000007","canonical_body_hex":"00010006000100000004627463310002000000080000000000000007000300000008000001a06d96e2400004000000010300050000000000060000001c00010300046274633100000001a06d96e24001010000000000000007","preimage_hex":"436f7265445250312d41444d494e01060000005900010006000100000004627463310002000000080000000000000007000300000008000001a06d96e2400004000000010300050000000000060000001c00010300046274633100000001a06d96e24001010000000000000007","sha256":"fde62ae75e5b39d35aea55a88373d5e9c30e877a40d3a6cca8ad0a5be95f3d8e"}
   ],
   "policy_staging_cases":[
     {"case_kind":"all_affected_senders_staged","required":["a","b"],"staged":{"a":"aa","b":"aa"},"policy_digest":"aa","generation_next":true,"effective_safe":true,"expected":"ACCEPT"},
@@ -49,6 +49,7 @@
   ],
   "settlement_hole_cases":[
     {"case_kind":"waived_hole_caps_scalar","current_contiguous_safe":10000,"hole_from":10001,"hole_until":12000,"candidate_scalar":20000,"hole_status":"RESOLVED_WAIVED","expected_scalar":10000},
+    {"case_kind":"override_keeps_scalar_cap","current_contiguous_safe":10000,"hole_from":10001,"hole_until":12000,"candidate_scalar":20000,"hole_status":"RESOLVED_WAIVED","override":true,"expected_scalar":10000},
     {"case_kind":"later_window_excludes_waived_hole","evidence_from":15000,"evidence_through":20000,"hole_from":10001,"hole_until":12000,"hole_status":"RESOLVED_WAIVED","other_gates":true,"expected_settlement_safe":true},
     {"case_kind":"window_intersects_waived_hole","evidence_from":11000,"evidence_through":20000,"hole_from":10001,"hole_until":12000,"hole_status":"RESOLVED_WAIVED","other_gates":true,"expected_settlement_safe":false},
     {"case_kind":"override_does_not_make_safe","evidence_from":11000,"evidence_through":20000,"hole_from":10001,"hole_until":12000,"hole_status":"RESOLVED_WAIVED","other_gates":true,"override":true,"expected_operational_settlement":true,"expected_settlement_safe":false}
