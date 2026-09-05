@@ -1,6 +1,10 @@
 {
   "format":"CoreDRP/1 Draft 0.5 supplemental conformance vectors",
   "admission_digest":{"lane":0,"event_type":"0x0100","scope_hex":"62746331","canonical_request_hex":"73686172652d726571756573742d7632","preimage_hex":"436f7265445250312d41444d495353494f4e0001000004627463310000001073686172652d726571756573742d7632","sha256":"20ac4935c0ba2ca43008e2063a79f051fe607c0a44e21bb089b063586a04210a"},
+  "semantic_contracts":{
+    "mining":{"source_hex":"000e636f72656472702e6d696e696e670000000100000001000462746331010007626974636f696e00076d61696e6e65740002000101000007d0000000fa00001388000000fa00003a980001d4c00002","sha256":"ce91f9fbec9c1ed1a87e30231f77ba22f1ec14042abe19c8602f11943fbd73bc"},
+    "miningcore":{"source_hex":"0012636f72656472702e6d696e696e67636f72650000000100000001000462746331000000010000000100020001","sha256":"b1d788efea7814d3c43f1e5a1d2cafdde14e259361824bf25ac2e14784afa1d7"}
+  },
   "profile_negotiation_cases":[
     {"case_kind":"highest_major_minor","core_major":1,"core_minor":2,"sender":[[1,0,1,0],[1,2,1,2],[2,0,1,1]],"receiver":[[1,0,1,0],[1,2,1,2],[2,0,1,1]],"expected":[2,0]},
     {"case_kind":"minor_core_requirement_filters","core_major":1,"core_minor":1,"sender":[[1,0,1,0],[1,2,1,2]],"receiver":[[1,0,1,0],[1,2,1,2]],"expected":[1,0]},
@@ -11,6 +15,12 @@
     {"case_kind":"descending","field_ids":[1,3,2,4],"widths":[16,16,8,4],"expected":"REJECT"},
     {"case_kind":"duplicate","field_ids":[1,2,2,4],"widths":[16,8,8,4],"expected":"REJECT"},
     {"case_kind":"wrong_uint64_width","field_ids":[1,2,3],"widths":[16,4,16],"uint64_field_id":2,"expected":"REJECT"}
+  ],
+  "admin_action_cases":[
+    {"action":"INITIAL_EPOCH_APPROVAL","action_type":5,"field_ids":[1,2,3,4,5,6,7,8,9],"expected":"ACCEPT"},
+    {"action":"NORMAL_EPOCH_TRANSITION","action_type":4,"field_ids":[1,2,3,4,5,6,7,8,9,10,11],"expected":"ACCEPT"},
+    {"action":"EXCEPTIONAL_EPOCH_ABANDON","action_type":6,"field_ids":[1,2,3,4,5,6,7,8,9,10,11,12,13],"expected":"ACCEPT"},
+    {"action":"RECEIVER_REPLACEMENT_APPROVAL","action_type":7,"field_ids":[1,2,3,4,5,6,7,8,9],"expected":"ACCEPT"}
   ],
   "scope_digest_cases":[
     {"case_kind":"valid","profile_id":"coredrp.mining","digest_len":32,"expected":"ACCEPT"},
