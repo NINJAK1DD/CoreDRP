@@ -2,6 +2,8 @@
 
 This registry is normative under Section 1 of `CoreDRP-1-SPEC-0.6.md`.
 
+This registry also explicitly incorporates `coredrp-v1-clock-state.md` as the normative Core 1.1 `ClockStateUpdate` validity/state-transition subregistry referenced by Sections 29–30 of the canonical Draft 0.6 specification. The clock-state subregistry is therefore part of the incorporated-registry authority tier, not merely an example vector or reference-tool convention.
+
 ## Mining Profile 1.1
 
 Canonical source bytes:
@@ -52,4 +54,4 @@ Profile IDs, coin IDs, network IDs, and commitment-class IDs are exact ASCII. Ca
 
 ## Epoch contract binding
 
-The complete outer epoch contract-binding grammar is Section 11 of the canonical Draft 0.6 specification. Draft 0.6 vectors publish the full preimage and digest for Core 1.1 / Mining 1.1 / Miningcore 1.1.
+The complete outer epoch contract-binding grammar is Section 11 of the canonical Draft 0.6 specification. Draft 0.6 vectors publish the full structured entries, reconstructed preimage, and digest for Core 1.1 / Mining 1.1 / Miningcore 1.1.
