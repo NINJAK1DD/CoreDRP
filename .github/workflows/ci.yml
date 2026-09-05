@@ -20,20 +20,56 @@ jobs:
         run: python3 tools/verify_core_hash_vectors.py
       - name: Verify current Mining admission vectors
         run: python3 tools/verify_admission_vectors.py
-      - name: Verify current Draft 0.6 freeze vectors
+      - name: Verify current Draft 0.6 profile-freeze vectors
         run: python3 tools/verify_draft06_vectors.py
       - name: Verify freeze-completion safety vectors
         run: python3 tools/verify_freeze_completion_vectors.py
       - name: Verify current state-machine vectors
         run: python3 tools/verify_state_vectors.py
       - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler && python3 -m pip install protobuf
-      - run: mkdir -p .build && protoc -I . --descriptor_set_out=.build/coredrp.pb --include_imports --include_source_info protocol/coredrp-v1.proto profiles/mining/coredrp-mining-v1.proto profiles/miningcore/coredrp-miningcore-v1.proto
+      - name: Build protobuf descriptor set
+        run: mkdir -p .build && protoc -I . --descriptor_set_out=.build/coredrp.pb --include_imports --include_source_info protocol/coredrp-v1.proto profiles/mining/coredrp-mining-v1.proto profiles/miningcore/coredrp-miningcore-v1.proto
+      - name: Verify protobuf structural baseline
+        run: python3 tools/check_wire_structure.py
       - name: Verify Mining/Miningcore/Bitcoin semantic vectors
         run: python3 tools/verify_profile_vectors.py
       - uses: bufbuild/buf-setup-action@v1
       - run: buf lint
-      - name: Reject protobuf wire/source breaking changes against main
-        run: buf breaking --against 'https://github.com/NINJAK1DD/CoreDRP.git#branch=main'
+      - name: Reject protobuf wire/source breaking changes
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            against='https://github.com/NINJAK1DD/CoreDRP.git#branch=main'
+          else
+            before='${{ github.event.before }}'
+            if [ -z "$before" ] || [[ "$before" =~ ^0+$ ]]; then
+              echo 'No previous push SHA available; descriptor structural baseline remains authoritative.'
+              exit 0
+            fi
+            git fetch --no-tags --depth=1 origin "$before"
+            before_dir="$(mktemp -d)"
+            trap 'rm -rf "$before_dir"' EXIT
+            git archive "$before" | tar -x -C "$before_dir"
+            against="$before_dir"
+          fi
+          set +e
+          output="$(buf breaking --against "$against" 2>&1)"
+          rc=$?
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            exit 0
+          fi
+          printf '%s\n' "$output"
+          # Draft 0.6 profile-freeze exception: field 10 was intentionally removed
+          # from the Miningcore projection reserved range and assigned to `scope`.
+          # Accept exactly this single Buf diagnostic and nothing else.
+          nonempty="$(printf '%s\n' "$output" | sed '/^[[:space:]]*$/d')"
+          lines="$(printf '%s\n' "$nonempty" | wc -l | tr -d ' ')"
+          if [ "$lines" = "1" ] && printf '%s\n' "$nonempty" | grep -Eq '^profiles/miningcore/coredrp-miningcore-v1\.proto:[0-9]+:[0-9]+:Previously present reserved range "\[10,31\]" on message "MiningcoreAccountingShareProjection" is missing values: \[10\] were removed\.$'; then
+            echo 'Accepted reviewed pre-freeze Miningcore projection scope reservation change.'
+            exit 0
+          fi
+          exit "$rc"
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '10.0.x' }
       - run: dotnet run --project tools/csharp-vector-check/CoreDRP.VectorCheck.csproj --configuration Release

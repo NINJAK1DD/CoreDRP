@@ -1,47 +1,69 @@
-# CoreDRP Mining Temporal Policy Registry — Draft 0.6 Freeze Completion
+# CoreDRP Mining Temporal Policy Registry — Draft 0.6 Profile Freeze
 
 **Status:** normative Mining Profile 1.1 registry
 
-This registry is incorporated by `coredrp-v1-draft06-contracts.md` and defines the lifecycle, staging, effective-time, reconciliation and evidence rules for temporal sender membership and completeness mode.
+This registry is incorporated by `coredrp-v1-draft06-contracts.md` and defines lifecycle, staging, effective-time, reconciliation and evidence rules for temporal sender membership and completeness mode.
 
 ## 1. Durable policy generations
 
-Every Mining scope has a monotonically increasing unsigned 64-bit `policy_generation`, starting at 1. A policy generation contains the complete ordered temporal membership/mode delta being activated by one ADMIN transition.
+Every Mining scope has a monotonically increasing unsigned 64-bit `policy_generation`, starting at 1. A policy generation contains the complete ordered temporal membership/mode delta activated by one ADMIN transition.
 
-Policy generation MUST NOT wrap. If generation is `2^64-1`, no further ordinary policy activation is possible under this profile version; operation fails closed pending a future profile revision/migration.
+Policy generation MUST NOT wrap. At `2^64-1`, no further ordinary activation is possible under this profile version.
 
-Each durable policy record stores at least:
+Each scope's first explicit temporal policy generation also creates immutable `scope_safety_origin_unix_ms`, equal to the earliest boundary from which payout safety is intended to be proven. The origin MUST NOT be moved backward by an ordinary policy change. Retroactive repair uses the reconciliation path and never invents safety before the durable origin.
 
-- scope;
-- policy_generation;
-- effective_unix_ms;
-- action/correction kind;
-- affected sender when applicable;
-- old interval/value evidence;
-- new interval/value evidence;
-- ADMIN idempotency UUID/digest;
-- receiver state version;
-- staging acknowledgements required and observed;
-- activation result;
-- audit reason.
+### 1.1 Bootstrap generation and initial payout frontier
 
-## 2. Sender staging requirement
+A scope with no durable temporal-policy generation is in `NO_POLICY` state. In that state `PayoutSafeThrough(scope)` is not yet defined and MUST NOT be consulted as an integer or replaced with an implementation-local sentinel.
 
-Core wire does not distribute Mining temporal policy. Therefore policy distribution is explicitly an out-of-band ADMIN prerequisite and MUST be coordinated before a policy becomes effective.
+The first policy generation is a special deterministic bootstrap transition:
 
-For any MEMBERSHIP_START, MEMBERSHIP_END, or COMPLETENESS_MODE_CHANGE that can alter whether a sender may admit payout-relevant events or whether its checkpoints are required:
+- `policy_generation` MUST equal `1`;
+- there MUST be no prior membership interval and no prior completeness-mode interval for the scope;
+- the action MUST establish the initial completeness mode using `COMPLETENESS_MODE_CHANGE` from `NO_POLICY` to exactly `RELAY_REQUIRED` or `NO_RELAY_REQUIRED`;
+- `effective_unix_ms` MUST equal the new immutable `scope_safety_origin_unix_ms` exactly;
+- the origin MUST be within the Core production event-time range;
+- `RequiredStagingSender` for this `NO_POLICY -> initial mode` transition is the empty set because no membership interval is permitted before the origin;
+- the bootstrap transition is exempt from the two `PayoutSafeThrough` comparisons in Section 5 because no prior payout frontier exists; every other staging, digest, generation, authorization, audit, future-effective, and atomicity rule still applies.
 
-1. operator constructs the exact new policy generation and effective time;
-2. the identical generation is durably staged on every affected sender before receiver activation;
-3. each affected sender records `(scope, policy_generation, effective_unix_ms, policy_digest32)` and returns an authenticated administrative staging acknowledgement;
-4. the receiver ADMIN transaction records the required sender set and verifies all required staging acknowledgements match the exact policy digest;
-5. only then may the receiver activate the policy generation.
+On successful atomic bootstrap commit, the receiver durably initializes:
 
-A policy MUST NOT become effective at the receiver when any affected sender lacks the identical staged generation.
+`PayoutSafeThrough(scope) = scope_safety_origin_unix_ms - 1`.
 
-Sender-side sequencers consult the staged policy at admission time. At/after an effective membership end, a sender MUST stop admitting payout-relevant events for that scope before returning local success. A sender newly entering RELAY_REQUIRED MUST begin participating in the checkpoint/membership regime at the same effective boundary.
+This subtraction is exact signed control-state arithmetic. If the origin is Unix millisecond `0`, the initialized control value is `-1`. This value is **not** a payout-safety claim before the origin. It is the canonical predecessor marker representing the empty proven interval `[scope_safety_origin_unix_ms, PayoutSafeThrough(scope)]`. Core production event-time limits do not apply to this one control-state predecessor marker.
 
-If staging cannot be completed, the ADMIN action fails with `ADMIN_ACTION_CONFLICT`; the old policy remains active. No correctly persisted event is intentionally created into a receiver policy that would deterministically reject it.
+After any payout-safe point at or after the origin is proven, `PayoutSafeThrough(scope) >= scope_safety_origin_unix_ms` and has its normal contiguous-frontier meaning. `SafePruneThrough` MUST NOT be initialized or advanced beyond this bootstrap predecessor value until its own safety predicates are satisfied.
+
+No other first-generation action is valid. In particular a first-generation MEMBERSHIP_START or MEMBERSHIP_END is `ADMIN_ACTION_CONFLICT`; initial mode must exist first. Later membership starts and mode changes use normal generation and Section 5 rules.
+
+Each durable policy record stores at least scope, generation, effective time, action/correction kind, affected sender when applicable, prior/new evidence, ADMIN identity/digest, receiver state version, required/observed staging acknowledgements, activation result and audit reason.
+
+## 2. Deterministic sender staging requirement
+
+Core wire does not distribute Mining temporal policy. Policy distribution is an authenticated out-of-band ADMIN prerequisite.
+
+Define `RequiredStagingSender(Q, change, T)` from durable policy state immediately before the proposed boundary `T`:
+
+- bootstrap `COMPLETENESS_MODE_CHANGE(Q, NO_POLICY -> initial_mode, T)`: exactly the empty set;
+- `MEMBERSHIP_START(Q,S,T)`: exactly `{S}`;
+- `MEMBERSHIP_END(Q,S,T)`: exactly `{S}`;
+- `COMPLETENESS_MODE_CHANGE(Q, RELAY_REQUIRED -> NO_RELAY_REQUIRED, T)`: every sender whose membership interval for `Q` contains `T-1`;
+- `COMPLETENESS_MODE_CHANGE(Q, NO_RELAY_REQUIRED -> RELAY_REQUIRED, T)`: every sender whose membership interval for `Q` contains `T` under the new generation;
+- a mode change where old mode equals new mode is invalid/no-op and MUST NOT create a generation.
+
+The set is derived from durable temporal membership, not connection state, certificate transport authorization, currently active streams, or operator-supplied arbitrary lists.
+
+For any ordinary change:
+
+1. construct the exact generation and effective time;
+2. stage the identical generation on every sender in `RequiredStagingSender`;
+3. each sender records `(scope,generation,effective_unix_ms,policy_digest32)` and returns authenticated staging acknowledgement;
+4. receiver recomputes `RequiredStagingSender`, records it, and verifies every required acknowledgement matches the exact digest;
+5. only then may receiver activate the policy generation.
+
+A missing/mismatched acknowledgement is `ADMIN_ACTION_CONFLICT`; old policy remains active.
+
+At/after membership end, the sender stops new payout-relevant admission for that scope before returning local success. A sender entering RELAY_REQUIRED begins admission/checkpoint obligations at the same effective boundary.
 
 ## 3. Policy staging digest and exact evidence encoding
 
@@ -49,10 +71,9 @@ The staging digest is:
 
 `SHA256("CoreDRP1-ADMIN" || uint16_be(0x0106) || uint32_be(body_len) || body)`
 
-where body is the canonical policy-generation body:
+where body is:
 
-`uint16_be(1)`
-`|| uint16_be(6)`
+`uint16_be(1) || uint16_be(6)`
 `|| field(1, scope_bytes)`
 `|| field(2, uint64_be(policy_generation))`
 `|| field(3, int64_be(effective_unix_ms))`
@@ -60,11 +81,11 @@ where body is the canonical policy-generation body:
 `|| field(5, sender_uuid16_or_zero_length)`
 `|| field(6, staged_policy_evidence_v1)`.
 
-`field(id,value) = uint16_be(id) || uint32_be(len(value)) || value` and fields are already in strictly increasing ID order.
+`field(id,value) = uint16_be(id) || uint32_be(len(value)) || value` in strictly increasing order.
 
-Field 5 presence is represented by length: membership kinds MUST use exactly 16 RFC 9562 sender bytes; COMPLETENESS_MODE_CHANGE MUST use zero-length field 5. No alternate absent encoding is permitted.
+Field 5 is exactly 16 RFC 9562 bytes for membership kinds and zero length for mode change.
 
-Field 6 is exact `StagedPolicyEvidenceV1`:
+`StagedPolicyEvidenceV1` is:
 
 `uint16_be(1)`
 `|| uint8(policy_kind)`
@@ -74,66 +95,59 @@ Field 6 is exact `StagedPolicyEvidenceV1`:
 `|| uint8(has_mode) || [uint8(mode)]`
 `|| uint64_be(policy_generation)`.
 
-Presence and semantic rules are exhaustive:
+- MEMBERSHIP_START (`1`): sender required, mode absent;
+- MEMBERSHIP_END (`2`): sender required, mode absent;
+- COMPLETENESS_MODE_CHANGE (`3`): sender absent, mode required (`1=RELAY_REQUIRED`, `2=NO_RELAY_REQUIRED`).
 
-- MEMBERSHIP_START (`policy_kind=1`): `has_sender=1`, sender REQUIRED, `has_mode=0`; effect is to begin membership at `effective_unix_ms` for that sender/scope;
-- MEMBERSHIP_END (`policy_kind=2`): `has_sender=1`, sender REQUIRED, `has_mode=0`; effect is to end the currently open matching membership interval at `effective_unix_ms`;
-- COMPLETENESS_MODE_CHANGE (`policy_kind=3`): `has_sender=0`, sender absent, `has_mode=1`, mode REQUIRED and exactly `1=RELAY_REQUIRED` or `2=NO_RELAY_REQUIRED`; effect is to end the currently open mode interval and begin the requested mode at `effective_unix_ms`;
-- any other presence combination, mode value, policy kind, scope mismatch, generation mismatch, or effective-time mismatch is `MALFORMED_FRAME` for staged evidence and causes the receiver ADMIN transition to fail `ADMIN_ACTION_CONFLICT` rather than activate mismatched staged policy.
+Duplicated scope/kind/sender/time/generation inside evidence MUST exactly equal the enclosing staging body. Any mismatch is malformed staging evidence and causes ADMIN activation failure.
 
-The scope, policy kind, sender, effective time and generation encoded inside `StagedPolicyEvidenceV1` MUST equal fields 1–5 of the enclosing staging body exactly. This deliberate duplication is self-checking and prevents an acknowledgement digest from being replayed against a differently interpreted policy body.
+This grammar is distinct from reconciliation `PolicyEvidenceV1`.
 
-This staging grammar is distinct from reconciliation-only `PolicyEvidenceV1` in Section 7: staging describes one future ordinary operation; reconciliation evidence describes complete historical intervals before/after correction. Implementations MUST NOT substitute one grammar for the other.
+## 4. Applicable clock uncertainty
 
-The `0x0106` domain-local discriminator is reserved by this registry solely for policy staging digests and MUST NOT be used as an executable receiver mutation without a future ADMIN-registry allocation.
+Ordinary policy activation uses one exact conservative function.
 
-## 4. Ordinary policy kinds
+For proposed change `(Q,change,T)`, let `R = RequiredStagingSender(Q,change,T)`. For each `S in R`, let `Skew(S,Q,T)` be the `effective_permitted_skew_ms` produced by the active multi-scope clock reducer for S's lane at the boundary, after applying the proposed scope-set/policy change where relevant.
 
-| Value | Meaning |
-|---:|---|
-| 1 | MEMBERSHIP_START |
-| 2 | MEMBERSHIP_END |
-| 3 | COMPLETENESS_MODE_CHANGE |
-| other | invalid |
+Define:
 
-Completeness mode values:
+`applicable_clock_uncertainty_ms(Q,change,T) = 2 * max(Skew(S,Q,T) for S in R)`.
 
-| Value | Meaning |
-|---:|---|
-| 1 | RELAY_REQUIRED |
-| 2 | NO_RELAY_REQUIRED |
-| other | invalid |
+If `R` is empty, uncertainty is `0`.
+
+The multiplication and addition are checked against the Core production-time range. Unknown/missing clock contract for any required sender fails closed; implementations MUST NOT substitute a receiver-local default.
+
+This is intentionally the same symmetric `2S` uncertainty used by cross-sender completeness. A tighter observed offset interval does not reduce ordinary ADMIN policy separation in Profile 1.1.
 
 ## 5. Ordinary effective-time restrictions
 
-Ordinary changes MUST be future-effective and satisfy both:
+This section applies to policy generations `>= 2`. Generation 1 uses the bootstrap rule in Section 1.1.
+
+Ordinary changes MUST be future-effective and satisfy:
 
 - `effective_unix_ms > PayoutSafeThrough(scope)`;
-- `effective_unix_ms > PayoutSafeThrough(scope) + applicable_clock_uncertainty_ms` using checked arithmetic.
+- `effective_unix_ms > PayoutSafeThrough(scope) + applicable_clock_uncertainty_ms(scope,change,effective_unix_ms)`.
 
-The second condition is the effective rule; the first is stated explicitly to make zero-uncertainty behavior obvious. Overflow fails closed.
+The initialized bootstrap predecessor value from Section 1.1 is a valid input to these comparisons, but it never implies safety before the origin. Overflow fails closed.
 
-For membership end at `valid_until`, the sender and receiver require trusted completeness through at least `valid_until - 1` for already-required relay history, or the transition creates explicit uncertainty/gap and cannot be treated as ordinary clean end.
+For membership end at `valid_until`, trusted completeness through at least `valid_until - 1` is required for already-required relay history, otherwise explicit uncertainty is created and the operation is not an ordinary clean end.
 
 ## 6. Temporal-policy reconciliation correction kinds
 
-`TEMPORAL_POLICY_RECONCILIATION` field 5 `correction_kind` has exactly these values:
+`TEMPORAL_POLICY_RECONCILIATION.correction_kind`:
 
-| Value | Meaning |
-|---:|---|
-| 1 | INSERT_MISSING_MEMBERSHIP_INTERVAL |
-| 2 | REPLACE_MEMBERSHIP_INTERVAL |
-| 3 | CORRECT_MEMBERSHIP_END |
-| 4 | REPLACE_COMPLETENESS_MODE_INTERVAL |
-| 5 | REMOVE_ERRONEOUS_MEMBERSHIP_INTERVAL |
-| 6 | REMOVE_ERRONEOUS_MODE_INTERVAL |
-| other | invalid / `MALFORMED_FRAME` |
+1. INSERT_MISSING_MEMBERSHIP_INTERVAL
+2. REPLACE_MEMBERSHIP_INTERVAL
+3. CORRECT_MEMBERSHIP_END
+4. REPLACE_COMPLETENESS_MODE_INTERVAL
+5. REMOVE_ERRONEOUS_MEMBERSHIP_INTERVAL
+6. REMOVE_ERRONEOUS_MODE_INTERVAL
 
-Membership corrections require sender UUID. Mode corrections require sender UUID absent.
+Other values are invalid. Membership corrections require sender UUID; mode corrections require sender absent.
 
 ## 7. Canonical reconciliation policy evidence bytes
 
-`prior_policy_evidence` and `new_policy_evidence` are not opaque. They use canonical `PolicyEvidenceV1`:
+`PolicyEvidenceV1`:
 
 `uint16_be(1)`
 `|| uint8(evidence_kind)`
@@ -144,48 +158,35 @@ Membership corrections require sender UUID. Mode corrections require sender UUID
 `|| uint8(has_mode) || [uint8(mode)]`
 `|| uint64_be(policy_generation)`.
 
-`evidence_kind`:
-
-- 1 = MEMBERSHIP_INTERVAL;
-- 2 = COMPLETENESS_MODE_INTERVAL.
+`evidence_kind`: 1 MEMBERSHIP_INTERVAL, 2 COMPLETENESS_MODE_INTERVAL.
 
 Presence rules:
 
-- MEMBERSHIP_INTERVAL: sender REQUIRED, mode absent;
-- COMPLETENESS_MODE_INTERVAL: sender absent, mode REQUIRED;
-- `valid_until`, when present, MUST be greater than `valid_from`;
-- scope MUST equal ADMIN field 3 scope exactly;
-- prior evidence generation identifies the existing durable record being corrected;
-- new evidence generation is the generation being inserted/activated by reconciliation.
+- membership: sender required, mode absent;
+- mode: sender absent, mode required;
+- present `valid_until > valid_from`;
+- scope equals ADMIN scope exactly.
 
-For INSERT corrections, prior evidence field is zero-length and new evidence is present. For REMOVE corrections, prior evidence is present and new evidence is zero-length. For REPLACE/CORRECT corrections, both are present.
+Cross-field correction rules:
+
+- ADMIN field 9 `policy_generation` MUST equal the generation in every present **new** evidence record;
+- INSERT: prior absent, new present;
+- REMOVE: prior present, new absent;
+- REPLACE: prior/new present and prior must match exactly one durable interval being superseded;
+- CORRECT_MEMBERSHIP_END: prior/new are membership evidence for same scope, sender, `valid_from`, and prior generation identity; only `valid_until` and new policy generation may change;
+- after applying any correction, the resulting membership intervals for one `(scope,sender)` MUST be non-overlapping and canonically ordered, and completeness-mode history for one scope MUST be non-overlapping with exactly one effective mode at any covered time;
+- a correction that would create ambiguous overlap is `ADMIN_ACTION_CONFLICT`.
 
 ## 8. Reconciliation mutation semantics
 
-The reconciliation ADMIN transaction:
+The receiver transaction validates idempotency/state version, parses evidence, locks exact policy history, verifies prior evidence byte-for-byte where required, records append-only correction/audit edges, applies the corrected interval set, records the affected range as `POLICY_RECONCILIATION_PENDING`, and commits atomically.
 
-1. validates idempotency and expected state version;
-2. parses prior/new evidence with Section 7 grammar;
-3. locks the exact scope policy history;
-4. verifies prior evidence matches the durable record byte-for-byte where required;
-5. records the correction and historical affected interval;
-6. applies the corrected interval set while preserving append-only audit history;
-7. marks the affected historical range `POLICY_RECONCILIATION_PENDING`;
-8. blocks advancement of `PayoutSafeThrough(scope)` across or beyond the affected uncertainty until verified replay/reconciliation establishes all completeness evidence required by the corrected policy;
-9. commits mutation, audit, state version and stored ADMIN result atomically.
-
-Only verified reconciliation that restores the required evidence clears the scalar-frontier reconciliation block for the affected range. `RESOLVED_WAIVED`, `GAP_WAIVER`, or `SETTLE_WITHOUT_FENCE_OVERRIDE` MUST NOT clear that scalar block and MUST NOT permit `PayoutSafeThrough` to cross unproven history. They may affect operational settlement handling only as defined by the settlement registry.
-
-A reconciliation never deletes the prior audit record. It supersedes its policy interpretation through an explicit correction edge.
+Only verified replay/reconciliation restoring all required evidence clears the scalar-frontier block. Waiver or settlement override MUST NOT clear it, advance `PayoutSafeThrough`, or authorize destructive pruning across unproven history.
 
 ## 9. Settlement consequences
 
-Reconciliation can restore normal scalar safety only after required event/checkpoint evidence is re-evaluated under the corrected policy and any newly required missing history is reconciled.
+A named operational override may permit settlement where the settlement registry allows it, but does not rewrite historical safety, convert uncertainty into evidence, or clear policy reconciliation.
 
-A policy waiver or settlement override may permit a specifically named operational settlement where the settlement registry allows it, but it does not clear `POLICY_RECONCILIATION_PENDING`, rewrite historical `PayoutSafeThrough`, convert unproven history into safe evidence, or authorize destructive pruning across that uncertainty.
+## 10. Future portion of reconciliation
 
-## 10. Sender staging and reconciliation
-
-A retroactive reconciliation does not pretend affected senders could have known the corrected past policy. It is receiver/operator repair of historical policy and must record that fact.
-
-For a future portion of a reconciliation that changes sender behavior going forward, the new policy generation MUST still satisfy Section 2 staging before its future effective boundary.
+Retroactive correction is receiver/operator repair. If a reconciliation also changes sender behavior at a future boundary, that future portion MUST independently satisfy Sections 2–5 staging and timing rules.

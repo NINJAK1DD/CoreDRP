@@ -1,6 +1,6 @@
 {
-  "note":"Draft 0.6 reviewed protobuf fingerprints. Git blob SHA-1 is repository identity; raw SHA-256 is the independent content fingerprint.",
+  "note":"Draft 0.6 reviewed protobuf fingerprints. Git blob SHA-1 is repository identity; raw SHA-256 is the independent content fingerprint. Structural compatibility is independently enforced by coredrp-v1-wire-structure.json and buf breaking.",
   "protocol/coredrp-v1.proto":{"git_blob_sha1":"fabac5d05d7755876a7fe61d350fdbda068c973f","sha256":"ae66f1565c7c00bbfd854283e3156f44e9e6c11453bcba03eaa381c2eef3db6c"},
   "profiles/mining/coredrp-mining-v1.proto":{"git_blob_sha1":"672aa9b286a79aeb382572c29bab72f2c8cd1e5a","sha256":"32af8419d71cc9eee1155388aba7cdf0874a5b5cab17ce2034a4cf89778a5f79"},
-  "profiles/miningcore/coredrp-miningcore-v1.proto":{"git_blob_sha1":"a8c7bdf0c0daef46b693400d20c24b2b6015d5f2","sha256":"c9260ed253675316931d6ba6baf1f57d428e130c1c3cad119469fd6f5a9474e4"}
+  "profiles/miningcore/coredrp-miningcore-v1.proto":{"git_blob_sha1":"af3a9c8a2435bfdce5d49ec5e48717be3f20362a","sha256":"b53187d6e767df7bf955e499ef2866be1ad11bf71cbdf322313f272a8eebce6b"}
 }

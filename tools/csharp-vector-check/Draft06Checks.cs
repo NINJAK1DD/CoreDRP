@@ -20,14 +20,12 @@ internal static class Draft06Checks
         using var doc=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"docs/coredrp-v1-draft06-vectors.json")));
         var d=doc.RootElement;
 
-        foreach(var groupName in new[]{"semantic_contracts","network_policies"})
+        foreach(var groupName in new[]{"semantic_contracts","network_policies","settlement_policies"})
+        foreach(var p in d.GetProperty(groupName).EnumerateObject())
         {
-            foreach(var p in d.GetProperty(groupName).EnumerateObject())
-            {
-                var src=Convert.FromHexString(p.Value.GetProperty("source_hex").GetString()!);
-                if(Hex(SHA256.HashData(src))!=p.Value.GetProperty("sha256").GetString())
-                    throw new Exception("Draft 0.6 digest "+groupName+"/"+p.Name);
-            }
+            var src=Convert.FromHexString(p.Value.GetProperty("source_hex").GetString()!);
+            if(Hex(SHA256.HashData(src))!=p.Value.GetProperty("sha256").GetString())
+                throw new Exception("Draft 0.6 digest "+groupName+"/"+p.Name);
         }
 
         var c=d.GetProperty("contract_binding");
@@ -62,15 +60,13 @@ internal static class Draft06Checks
 
         var reconstructed=Cat(
             Encoding.ASCII.GetBytes("CoreDRP1-CONTRACT"),
-            U32(c.GetProperty("core_major").GetUInt32()),
-            U32(c.GetProperty("core_minor").GetUInt32()),
+            U32(c.GetProperty("core_major").GetUInt32()),U32(c.GetProperty("core_minor").GetUInt32()),
             new[]{(byte)c.GetProperty("lane").GetInt32()},
-            U16(profileBytes.Length),Cat(profileBytes),
-            U16(scopeBytes.Length),Cat(scopeBytes),
+            U16(profileBytes.Length),Cat(profileBytes),U16(scopeBytes.Length),Cat(scopeBytes),
             U16(eventBytes.Length),Cat(eventBytes));
 
         if(Hex(reconstructed)!=c.GetProperty("preimage_hex").GetString())throw new Exception("Draft 0.6 structured contract preimage");
         if(Hex(SHA256.HashData(reconstructed))!=c.GetProperty("sha256").GetString())throw new Exception("Draft 0.6 epoch contract binding");
-        Console.WriteLine("CoreDRP C# Draft 0.6 freeze vectors: OK");
+        Console.WriteLine("CoreDRP C# Draft 0.6 profile-freeze vectors: OK");
     }
 }

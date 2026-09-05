@@ -12,7 +12,8 @@ message MiningcoreAccountingShareProjection {
   optional int64 reward_basis_satoshis = 4;
   optional coredrp.mining.v1.Decimal38Scale24 pps_calculated_amount = 5;
   bool block_only = 6; bool block_record_emitted = 7; bool statistical_record_emitted = 8; bool preserve_created = 9;
-  reserved 10 to 31;
+  bytes scope = 10;
+  reserved 11 to 31;
 }
 message MiningcoreAccountingShareEvent { MiningcoreAccountingShareProjection primary = 1; optional MiningcoreAccountingShareProjection paired = 2; reserved 3 to 15; }
 enum AccountingRole { ACCOUNTING_ROLE_UNSPECIFIED = 0; ACCOUNTING_ROLE_SINGLE = 1; ACCOUNTING_ROLE_PARENT = 2; ACCOUNTING_ROLE_AUXILIARY = 3; }

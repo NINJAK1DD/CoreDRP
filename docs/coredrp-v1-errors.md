@@ -1,4 +1,4 @@
-# CoreDRP/1 Error Registry — Draft 0.5
+# CoreDRP/1 Error Registry — Draft 0.6
 
 **Originally designed and authored by Rob Cooke, 2026.**
 
