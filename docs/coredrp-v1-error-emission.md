@@ -1,4 +1,4 @@
-# CoreDRP/1 Draft 0.5 error-emission registry
+# CoreDRP/1 Draft 0.6 error-emission registry
 
 This registry is normative. Every non-UNSPECIFIED `ErrorCode` has one primary emission condition; profiles MAY add diagnostic detail but MUST NOT weaken disposition.
 
