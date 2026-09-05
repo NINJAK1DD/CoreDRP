@@ -7,14 +7,24 @@ def die(x):print('layer-boundary failure:',x,file=sys.stderr);raise SystemExit(1
 if any(x.startswith('profiles/') for x in im(C)):die('Core imports profile')
 if im(M)-{'protocol/coredrp-v1.proto'}:die('Mining forbidden import')
 if im(MC)-{'protocol/coredrp-v1.proto','profiles/mining/coredrp-mining-v1.proto'}:die('Miningcore forbidden import')
-def ids(p):
- t=re.sub(r'//.*?$|/\*.*?\*/','',p.read_text(),flags=re.M|re.S);return [x for pair in re.findall(r'\b(?:message|enum|service|rpc)\s+(\w+)|\b(\w+)\s*=\s*\d+\s*;',t) for x in pair if x]
+def ids_text(t):
+ t=re.sub(r'//.*?$|/\*.*?\*/','',t,flags=re.M|re.S);return [x for pair in re.findall(r'\b(?:message|enum|service|rpc)\s+(\w+)|\b(\w+)\s*=\s*\d+\s*;',t) for x in pair if x]
+def ids(p):return ids_text(p.read_text())
 def words(s):
  out=[]
  for c in s.replace('-','_').split('_'):out+=re.findall(r'[A-Z]+(?=[A-Z][a-z]|$)|[A-Z]?[a-z]+|\d+',c)
  return [x.lower() for x in out]
-cf=('pool','miner','share','payout','bitcoin','coinbase','hashrate','postgres','miningcore','stratum','pplns','prop','wallet','satoshi','difficulty','block','reward','coin','nonce','merkle'); mf=('postgres','sql','miningcore','pplnsbf','npgsql')
-for p,fs in [(C,cf),(M,mf)]:
- hits=[w for i in ids(p) for w in words(i) if any(w==f or w.startswith(f+'s') for f in fs)]
- if hits:die(str(sorted(set(hits))))
+core_stems=('pool','miner','mining','share','payout','bitcoin','coinbase','hashrate','postgres','stratum','pplns','prop','wallet','satoshi','difficult','block','reward','coin','nonce','merkle')
+mining_stems=('postgres','sql','miningcore','npgsql')
+def hits_for(text,stems):return sorted({w for i in ids_text(text) for w in words(i) if any(w.startswith(s) for s in stems)})
+for p,stems in [(C,core_stems),(M,mining_stems)]:
+ hits=hits_for(p.read_text(),stems)
+ if hits:die(f'{p.relative_to(R)} contains forbidden profile terms: {hits}')
+# Guard the guard: these synthetic identifiers MUST be rejected by the Core stem matcher.
+bad='''message MiningState { string difficulties = 1; string blockchain = 2; string pplnsbf = 3; }'''
+expected={'mining','difficulties','blockchain','pplnsbf'}
+seen=set(hits_for(bad,core_stems))
+if not expected.issubset(seen):die(f'boundary self-test failed, missed {sorted(expected-seen)}')
+# Ensure a legitimate Core identifier containing "minimum" remains allowed.
+if hits_for('message Version { uint32 minimum_core_major = 1; }',core_stems):die('boundary self-test false-positive on minimum_core_major')
 print('CoreDRP layer boundaries: OK')

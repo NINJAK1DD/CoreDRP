@@ -12,16 +12,29 @@ jobs:
       - run: python3 tools/check_event_registry.py
       - run: python3 tools/check_wire_compatibility.py
       - run: python3 tools/verify_test_vectors.py
+      - run: python3 tools/verify_state_vectors.py
       - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler && python3 -m pip install protobuf
       - run: mkdir -p .build && protoc -I . --descriptor_set_out=.build/coredrp.pb --include_imports --include_source_info protocol/coredrp-v1.proto profiles/mining/coredrp-mining-v1.proto profiles/miningcore/coredrp-miningcore-v1.proto
       - run: python3 tools/verify_profile_vectors.py
       - uses: bufbuild/buf-setup-action@v1
       - run: buf lint
       - uses: actions/setup-dotnet@v4
-        with: { dotnet-version: '8.0.x' }
+        with: { dotnet-version: '10.0.x' }
       - run: dotnet run --project tools/csharp-vector-check/CoreDRP.VectorCheck.csproj --configuration Release
       - name: Run TLA+ safety model
         run: |
           curl -fL --retry 3 -o .build/tla2tools.jar https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
           echo "b658b4e504fdf0b721caf7066320f6b6fe5805f4dd2f717d0e47baba4097205e  .build/tla2tools.jar" | sha256sum -c -
-          java -jar .build/tla2tools.jar -config model/CoreDRP.cfg model/CoreDRP.tla
+          java -XX:+UseParallelGC -jar .build/tla2tools.jar -config model/CoreDRP.cfg model/CoreDRP.tla
+      - name: Prove TLA+ negative mutation is detectable
+        run: |
+          set +e
+          java -XX:+UseParallelGC -jar .build/tla2tools.jar -config model/CoreDRP-unsafe.cfg model/CoreDRP.tla > .build/tla-unsafe.log 2>&1
+          rc=$?
+          set -e
+          cat .build/tla-unsafe.log
+          if [ "$rc" -eq 0 ]; then
+            echo "unsafe TLA+ mutation unexpectedly satisfied all invariants" >&2
+            exit 1
+          fi
+          grep -q "Invariant PruneSafe is violated" .build/tla-unsafe.log
