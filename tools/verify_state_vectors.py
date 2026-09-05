@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright 2026 Rob Cooke
 # SPDX-License-Identifier: Apache-2.0
-"""Verify CoreDRP/1 Draft 0.4 state-machine decision vectors."""
+"""Verify CoreDRP/1 Draft 0.5 state-machine decision vectors."""
 from pathlib import Path
 import json
 R=Path(__file__).resolve().parents[1];D=json.loads((R/'docs/coredrp-v1-state-vectors.json').read_text(encoding='utf-8'))
@@ -13,64 +13,64 @@ def reconnect(x):
  if C>T:return 'SENDER_ROLLBACK'
  if C<Rm:return 'RECEIVER_ROLLBACK'
  if C==0 and Rm==0 and not x.get('genesis_hash_match',True):return 'SPLIT_LOG'
- if not x['hash_match']:return 'SPLIT_LOG'
+ if C>0 and not x['hash_match']:return 'SPLIT_LOG'
  if C+1<E:return 'RECOVERY_GAP'
  if C>Rm:return 'ADOPT_ACK' if x['receiver_hash_verifiable'] else 'SPLIT_LOG'
  return 'RESUME'
-for x in D['reconnect_cases']:
- got=reconnect(x);assert got==x['expected'],(x['name'],got,x['expected'])
- if got=='RESUME':assert x['resume_sequence']==x['C']+1
- if got=='ADOPT_ACK':assert x['adopt_sequence']==x['C']
-for x in D['wal_crash_cases']:
- if x.get('application_success_sent'):assert x['wal_durable'] and x['event_recoverable']
- if x.get('prune_allowed'):assert x['ack_anchor_durable'] and x['prune_through']<=x['remembered_ack_sequence']
- if not x.get('ack_anchor_durable',False):assert not x.get('prune_allowed',False)
- if x['name']=='wal_durable_before_response':assert x['retry_returns_same_event']
-def admission(x):
- if x['age_ms']>x['horizon_ms']:return 'CALLER_RETRY_FORBIDDEN'
- if x['stored_digest']!=x['retry_digest']:return 'IDEMPOTENCY_KEY_CONFLICT'
- return 'RETURN_ORIGINAL'
+for x in D['reconnect_cases']:assert reconnect(x)==x['expected'],x
+def repin(x):
+ if not x['approved']:return 'DENY'
+ if not x['hash_match']:return 'SPLIT_LOG'
+ if x['C']>x['T']:return 'SENDER_ROLLBACK'
+ if x['C']<x['R']:return 'REPLAY_AND_REPIN' if x.get('lost_acked_history_retained') else 'RECOVERY_GAP'
+ if x['C']>x['R']:return 'ADOPT_AND_REPIN' if x['hash_verifiable'] else 'SPLIT_LOG'
+ return 'REPIN'
+for x in D['receiver_replacement_cases']:assert repin(x)==x['expected'],x
 for x in D['admission_idempotency']:
- assert admission(x)==x['expected'],x['name']
- if x['expected']=='RETURN_ORIGINAL':assert x['first_relay_event_id']==x['retry_relay_event_id']
-def epoch(x):
- if x.get('initial'):
-  return 'ALLOW_BOOTSTRAP' if x['approval_present'] and x['genesis_hash_match'] else 'EPOCH_NOT_APPROVED'
- if x['name'].startswith('normal_'):
-  return 'ALLOW_NORMAL_TRANSITION' if x['C']==x['R']==x['T']==x['final_sequence'] and x['hashes_match'] else 'DENY_NORMAL_TRANSITION'
- if x['name'].startswith('exceptional_'):
-  ok=x['gap_durable'] and x['gap_first']==x['C']+1 and x['gap_last']==x['T'] and x['R']==x['C']
-  return 'ALLOW_EXCEPTIONAL_TRANSITION' if ok else 'DENY_EXCEPTIONAL_TRANSITION'
- if x['name']=='inherit_floor':return max(x['old_last_event_time'],x['old_last_trusted_checkpoint'],x['old_temporal_floor'])
- return 'ACCEPT' if x['new_event_time']>x['checkpoint_floor'] else 'CHECKPOINT_BACKDATED_EVENT'
-for x in D['epoch_transition_cases']:
- expected=x.get('expected',x.get('expected_new_floor'));assert epoch(x)==expected,x['name']
-for x in D['writer_fencing']:
- got='DENY' if x['same_sender'] and x['writer_a_lane']==x['writer_b_lane'] else 'ALLOW';assert got==x['expected_second_writer']
-def payout_safe(x):
- mode=x['mode']
- if mode=='UNKNOWN':return False
- if mode=='NO_RELAY_REQUIRED':return True
- if mode!='RELAY_REQUIRED' or not x['members']:return False
- return all(m['checkpoint']>=x['required_boundary'] for m in x['members'])
-for x in D['membership_cases']:assert payout_safe(x)==x['expected_payout_safe'],x['name']
-def clock_state(x):
+ if x['case_kind']=='same_key_same_digest':
+  assert x['stored_digest']==x['retry_digest'] and x['first_relay_event_id']==x['retry_relay_event_id'] and x['expected']=='RETURN_ORIGINAL'
+ elif x['case_kind']=='same_key_different_digest':assert x['stored_digest']!=x['retry_digest'] and x['expected']=='IDEMPOTENCY_KEY_CONFLICT'
+ elif x['case_kind']=='same_key_different_lane':assert x['lane']!=x['stored_lane'] and x['expected']=='DISTINCT_NAMESPACE'
+ else:raise AssertionError(x)
+for x in D['epoch_cases']:
+ k=x['case_kind']
+ if k=='normal':got='ALLOW_NORMAL_TRANSITION' if x['C']==x['R']==x['T']==x['final_sequence'] and x['hashes_match'] else 'DENY_NORMAL_TRANSITION'
+ elif k in {'exceptional_exact','exceptional_wildcard'}:
+  ok=x['R']==x['C'] and x['gap_first']==x['C']+1 and x['gap_last']==x['T'] and ((k=='exceptional_exact' and x['scope_attribution_complete'] and x['gap_scope']!='*') or (k=='exceptional_wildcard' and not x['scope_attribution_complete'] and x['gap_scope']=='*'))
+  got='ALLOW_EXCEPTIONAL_TRANSITION' if ok else 'DENY_EXCEPTIONAL_TRANSITION'
+ elif k=='retired_import':got='RESOLVED_RECONCILED' if x['retired_epoch'] and x['chain_verified'] and x['range_verified'] and x['effects_idempotent'] else 'DENY'
+ else:raise AssertionError(x)
+ assert got==x['expected'],x
+for x in D['membership_event_cases']:
+ got='ACCEPT' if x['transport_authorized'] and (x['mode']!='RELAY_REQUIRED' or x['membership_covers_event']) else 'TEMPORAL_MEMBERSHIP_REQUIRED'
+ assert got==x['expected'],x
+for x in D['checkpoint_authorization_cases']:
+ got='ACCEPT' if all(s['authorized'] for s in x['covered_scopes']) else 'UNAUTHORIZED_SCOPE';assert got==x['expected'],x
+for x in D['gap_relevance_cases']:
+ got=x['gap_scope']=='*' or x['gap_scope']==x['query_scope'];assert got==x['expected_relevant'],x
+def clock(x):
  if x.get('no_sample'):return 'UNKNOWN'
  L,U,S=x['L'],x['U'],x['S']
  if L>=-S and U<=S:return 'GOOD'
  if U < -S or L > S:return 'BAD'
  return 'UNKNOWN'
-for x in D['clock_cases']:assert clock_state(x)==x['expected'],x['name']
-a=D['clock_policy_aggregation'];got={k:min(s[k] for s in a['scopes']) for k in a['expected']};assert got==a['expected']
-for x in D['quarantine_cases']:
- if not x.get('placement_valid',True):got=('INVALID_EVENT_PLACEMENT',False)
- elif not x.get('resent_exact_bytes',True):got=('CHAIN_OR_IDENTITY_MISMATCH',False)
- elif not x.get('payload_valid',True):got=('SEMANTIC_PAYLOAD_INVALID',True)
- else:got=('ACCEPT',False)
- assert got==(x['expected'],x['quarantinable']),x['name']
-o=D['ordering_case'];events=sorted(o['events'],key=lambda x:(x['event_time_unix_ms'],bytes.fromhex(x['sender_hex']),x['sequence'],bytes.fromhex(x['relay_event_id_hex'])));assert [e['id'] for e in events]==o['expected_order']
-for x in D['window_updates']:
- got='MALFORMED_FRAME' if x['new_events']>x['negotiated_events'] or x['new_bytes']>x['negotiated_bytes'] else ('ACCEPT_PAUSE' if x['new_events']==0 or x['new_bytes']==0 else 'ACCEPT')
- assert got==x['expected'],x['name']
-f=D['flow_control'];assert sum(x['payload_len'] for x in f['events'])==f['expected_payload_charge'] and len(f['events'])==f['expected_window_events']
-print('CoreDRP/1 Draft 0.4 state-machine vectors: OK')
+for x in D['clock_cases']:assert clock(x)==x['expected'],x
+for x in D['clock_state_updates']:
+ if x['generation']<=x['last_generation']:got='IGNORE'
+ elif x['age_ms']>x['valid_for_ms']:got='UNKNOWN'
+ else:got=x['state']
+ assert got==x['expected'],x
+MAX_T=253402300799999
+for x in D['time_cases']:
+ if x['case_kind']=='overflow_b_plus_2s':
+  got='REJECT_OVERFLOW' if x['B'] > (2**63-1) - 2*x['S'] else 'ACCEPT'
+ else:got='ACCEPT' if 0<=x['event_time']<=MAX_T else 'REJECT'
+ assert got==x['expected'],x
+for x in D['scope_contract_ownership']:
+ typ=int(x['event_type'],16);need_mc=typ in {0x0200,0x0201,0x0202};got='ACCEPT' if x['has_mining'] and (x['has_miningcore'] or not need_mc) else 'SEMANTIC_CONTRACT_MISMATCH';assert got==x['expected'],x
+f=D['flow_control'];charge=sum(f['fixed_event_charge']+e['scope_len']+e['payload_len'] for e in f['events']);assert charge==f['expected_charge'];assert f['window_bytes_zero_pauses'] and f['window_events_zero_pauses']
+for x in D['membership_interval_cases']:
+ if x['case_kind']=='deactivation_final_required':got=x['final_checkpoint']>=x['until']-1
+ else:got=x['from']<=x['T']<x['until']
+ assert got==x['expected'],x
+print('CoreDRP/1 Draft 0.5 state-machine vectors: OK')
