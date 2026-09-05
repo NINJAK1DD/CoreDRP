@@ -17,6 +17,7 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler && python3 -m pip install protobuf
       - run: mkdir -p .build && protoc -I . --descriptor_set_out=.build/coredrp.pb --include_imports --include_source_info protocol/coredrp-v1.proto profiles/mining/coredrp-mining-v1.proto profiles/miningcore/coredrp-miningcore-v1.proto
       - run: python3 tools/verify_profile_vectors.py
+      - run: python3 tools/verify_witness_commitment_regression.py
       - uses: bufbuild/buf-setup-action@v1
       - run: buf lint
       - uses: actions/setup-dotnet@v4
