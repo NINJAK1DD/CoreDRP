@@ -9,7 +9,7 @@ This registry is incorporated by `CoreDRP-1-SPEC-0.6.md`. Where reference toolin
 
 ## 1. Scope and placement
 
-Mining scope is exact ASCII `[A-Za-z0-9._-]{1,64}`, case-sensitive, with no Unicode normalization. `MiningShareEvent` is event type `0x0100`, lane 0, and requires non-empty scope. A Mining checkpoint is Core type `0x0001`, lane 0, empty Core scope; its covered Mining scopes are derived from persisted epoch contracts and temporal policy.
+Mining scope is exact ASCII `[A-Za-z0-9._-]{1,64}`, case-sensitive, with no Unicode normalization. `MiningShareEvent` is event type `0x0100`, lane 0, and requires non-empty scope. A Mining checkpoint is Core type `0x0001`, lane 0, empty Core scope; its covered Mining scopes are derived from persisted epoch contracts, admitted payout-effect scopes, and temporal policy.
 
 ## 2. String and byte limits
 
@@ -20,14 +20,16 @@ After protobuf parsing and before durable acceptance:
 | `miner` | 256 | **NO** |
 | `worker` | 128 | YES |
 | `user_agent` | 256 | YES |
-| `source_ip` | 64 | YES |
+| `source_ip` | 64 | YES in generic Mining only |
 | `source` | 64 | YES |
-| `session_id` | 128 | YES |
+| `session_id` | 128 | YES in generic Mining only |
 | `candidate_kind` | 64 | NO when present |
 | `transaction_confirmation_data` | 4096 | NO when present |
 | `candidate_hash` | 128 | NO when present |
 
 Empty `worker` means an unlabelled worker. Empty `user_agent`, `source_ip`, `source`, or `session_id` means the upstream did not supply that optional descriptive value. These empty strings remain exact values; implementations MUST NOT substitute defaults before hashing, admission identity, storage, comparison, or accounting order.
+
+Miningcore accounting semantics may strengthen generic Mining requirements for fields embedded in `0x0200`; those stronger constraints are normative for that event type.
 
 No string is Unicode-normalized before hashing, admission identity, storage, or comparison.
 
@@ -42,7 +44,7 @@ For accepted-work events:
 - `network_difficulty > 0`;
 - `achieved_share_difficulty >= 0`.
 
-Zero `achieved_share_difficulty` is allowed only as the explicit informational value represented by the event; the other three quantities are strictly positive.
+Zero `achieved_share_difficulty` is allowed only as the explicit informational value represented by a generic Mining event. Miningcore accounting `0x0200` strengthens this to strictly positive.
 
 ## 4. Event time and identity
 
@@ -120,9 +122,24 @@ These numeric values are part of Mining Profile 1.1 semantics. Unknown values MU
 
 `semantic_retry_threshold` is fixed at exactly 3 for Mining Profile 1.1 and is not a receiver-local tuning knob.
 
-## 8. Temporal membership and cross-sender completeness
+## 8. Temporal membership, payout-effect scopes and cross-sender completeness
 
-Membership intervals are half-open `[valid_from_unix_ms, valid_until_unix_ms)`. Under `RELAY_REQUIRED`, a payout-relevant lane-0 Mining event at time `T` requires durable membership for `(sender,scope,T)`; transport authorization alone is insufficient. Missing membership fails closed with `TEMPORAL_MEMBERSHIP_REQUIRED`.
+Membership intervals are half-open `[valid_from_unix_ms, valid_until_unix_ms)`.
+
+Define `PayoutEffectScopes(E)` as the exact set of Mining scopes into which event `E` creates payout-relevant durable effects.
+
+- For `0x0100 MiningShareEvent`, `PayoutEffectScopes(E) = {Event.scope}`.
+- For `0x0200 MiningcoreAccountingShareEvent`, `PayoutEffectScopes(E)` is defined by the Miningcore registry and contains the primary projection scope plus the paired auxiliary projection scope when present.
+
+For **every** `Q in PayoutEffectScopes(E)` independently:
+
+- the sender MUST be transport-authorized for `Q`;
+- exact selected Mining scope contract must exist for `Q`;
+- if mode `(Q,T)` is `RELAY_REQUIRED`, durable temporal membership `(sender,Q,T)` MUST exist.
+
+Missing transport authorization is `UNAUTHORIZED_SCOPE`. Missing required membership is `TEMPORAL_MEMBERSHIP_REQUIRED`. These failures are non-quarantinable and occur before application effects commit.
+
+A sender that has admitted payout-relevant effects into scope `Q` during an epoch is part of that scope's completeness history even when `Q != Event.scope` of the containing event. Checkpoint coverage and RequiredSender evaluation MUST therefore include `Q`; embedded/auxiliary scopes cannot bypass completeness by being nested inside another Core event scope.
 
 For a settlement/block boundary `B` and symmetric maximum permitted skew `S` for a required sender, receiver completeness evidence MUST cover at least:
 
@@ -188,13 +205,13 @@ Both `producer_generation` and `admission_sequence` are unsigned 64-bit counters
 
 Producer UUIDs are not caller-created free-form cardinality. Each sender maintains a durable authorized producer registry keyed by `(lane,scope,producer_id)`.
 
-Mining Profile 1.1 permits at most **1024 registered producer IDs per `(sender,lane,scope)`**. Registration/removal is an explicit local administrative operation; an admission request for an unregistered producer is rejected before WAL admission. Removing a producer never removes its retired-generation high-water evidence while that identity could be replayed from retained application state.
+Mining Profile 1.1 permits at most **1024 registered producer IDs per `(sender,lane,scope)`**. Registration/removal is an explicit local administrative operation; an admission request for an unregistered producer is rejected before WAL admission. Removing a producer creates/retains the permanent producer tombstone defined by `coredrp-v1-producer-lifecycle.md`; the same UUID cannot later be registered again in that namespace.
 
 A deployment requiring more than 1024 producers for one scope requires a future Mining profile revision or an explicitly partitioned sender identity.
 
-Thus detailed retry state is bounded to one active generation per registered producer and the permanent no-double-mint property is represented by one compact high-water record per producer.
+Thus detailed retry state is bounded to one active generation per registered producer and the permanent no-double-mint property is represented by one compact high-water/tombstone record per producer.
 
-The generation map, seal record, high-water record, producer-registration record, and admitted WAL record cross a durability boundary before application success.
+The generation map, seal record, high-water record, producer-registration/tombstone record, and admitted WAL record cross a durability boundary before application success.
 
 ## 11. Canonical MiningShare caller-request bytes
 

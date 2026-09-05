@@ -1,0 +1,17 @@
+{
+  "format":"CoreDRP Miningcore 1.1 accounting-schema-v3 strict safety vectors",
+  "cases":[
+    {"case_kind":"base_parent_aux","expected":"VALID"},
+    {"case_kind":"missing_primary_accounting_id","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"zero_accounting_id","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"short_accounting_id","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"missing_reward_basis","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"zero_reward_basis","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"empty_session_id","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"empty_source_ip","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"zero_achieved_share_difficulty","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"block_only","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"paired_missing_accounting_id","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"paired_missing_reward_basis","expected":"SEMANTIC_PAYLOAD_INVALID"}
+  ]
+}

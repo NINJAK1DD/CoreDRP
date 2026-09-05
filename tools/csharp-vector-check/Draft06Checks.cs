@@ -20,13 +20,21 @@ internal static class Draft06Checks
         using var doc=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"docs/coredrp-v1-draft06-vectors.json")));
         var d=doc.RootElement;
 
-        foreach(var groupName in new[]{"semantic_contracts","network_policies","settlement_policies"})
+        foreach(var groupName in new[]{"semantic_contracts","network_policies","adjustment_policies","settlement_policies"})
         foreach(var p in d.GetProperty(groupName).EnumerateObject())
         {
             var src=Convert.FromHexString(p.Value.GetProperty("source_hex").GetString()!);
             if(Hex(SHA256.HashData(src))!=p.Value.GetProperty("sha256").GetString())
                 throw new Exception("Draft 0.6 digest "+groupName+"/"+p.Name);
         }
+
+        // Cross-language ordering guard: PPLNSBF canonical bytes must encode the
+        // raw-ASCII-sorted block_finder_percentage key before factor.
+        var pbf=Convert.FromHexString(d.GetProperty("settlement_policies").GetProperty("pplnsbf_factor_2_blockfinder_5_identity").GetProperty("source_hex").GetString()!);
+        var bfp=Encoding.ASCII.GetBytes("block_finder_percentage");
+        var fac=Encoding.ASCII.GetBytes("factor");
+        if(pbf.AsSpan().IndexOf(bfp)<0 || pbf.AsSpan().IndexOf(fac)<0 || pbf.AsSpan().IndexOf(bfp)>=pbf.AsSpan().IndexOf(fac))
+            throw new Exception("Draft 0.6 PPLNSBF canonical key ordering");
 
         var c=d.GetProperty("contract_binding");
         var profiles=c.GetProperty("profile_entries").EnumerateArray().Select(p=>new {
@@ -67,6 +75,6 @@ internal static class Draft06Checks
 
         if(Hex(reconstructed)!=c.GetProperty("preimage_hex").GetString())throw new Exception("Draft 0.6 structured contract preimage");
         if(Hex(SHA256.HashData(reconstructed))!=c.GetProperty("sha256").GetString())throw new Exception("Draft 0.6 epoch contract binding");
-        Console.WriteLine("CoreDRP C# Draft 0.6 profile-freeze vectors: OK");
+        Console.WriteLine("CoreDRP C# Draft 0.6 final Profile 1.1 freeze vectors: OK");
     }
 }

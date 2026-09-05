@@ -11,22 +11,21 @@ CoreDRP is a durable, authenticated, replayable event-relay protocol with a doma
 
 The canonical working specification is [`docs/CoreDRP-1-SPEC-0.6.md`](docs/CoreDRP-1-SPEC-0.6.md). [`docs/CoreDRP-1-SPEC.md`](docs/CoreDRP-1-SPEC.md) is intentionally only a pointer to that canonical version. Draft 0.5 and earlier specifications/semantic corpora remain historical reference only.
 
-## Draft 0.6 profile-freeze focus
+## Draft 0.6 final Profile 1.1 freeze focus
 
-The current pass closes the final integration/profile findings without redesigning Core 1.1. In particular it:
+This pass closes the remaining Miningcore financial-integration findings while leaving Core 1.1 wire unchanged. In particular it:
 
-- aligns Miningcore merged-mining accounting with the actual Miningcore model: one shared proof/accounting ID projected to distinct parent/auxiliary scopes, with chain-specific miner identities allowed;
-- adds projection-local scope to the Miningcore profile wire using field 10 before profile freeze;
-- binds PPLNS/PPLNSBF payout-window configuration through a canonical settlement-scheme-policy digest;
-- defines exact temporal-policy staging sender sets and `applicable_clock_uncertainty = 2 * max(required sender skew)`;
-- permanently tombstones retired producer UUIDs and seals active producer generations before changed admission contracts;
-- defines financially incompatible semantic-contract migration barriers across epochs;
-- preserves `PayoutSafeThrough`/`SafePruneThrough` as truthful contiguous frontiers while adding settlement-specific pruning for unrelated later evidence beyond a permanent waived hole;
-- gives payout-significant quarantine explicit unresolved/reconciled/waived financial semantics;
-- makes verified sender-processing-limit clock evidence deterministically BAD;
-- defines durable scope safety origin and strict temporal-reconciliation cross-field/non-overlap rules;
-- splits current accounting and Bitcoin profile vectors from superseded historical profile fixtures;
-- restores a full committed protobuf structural baseline (messages, fields, enums, oneofs, services, packages and reserved ranges) alongside exact reviewed byte fingerprints and `buf breaking`.
+- treats every Miningcore accounting projection scope—including auxiliary merged-mining scope—as an independent transport-authorization, temporal-membership, scope-contract and checkpoint-completeness boundary;
+- tightens Miningcore accounting schema 3 to the actual accounting layer requirements: nonzero RFC 9562 accounting UUID, positive reward basis, non-empty session/source IP, positive achieved share difficulty, `preserve_created=true`, and `block_only=false`;
+- freezes the RFC 9562 UUID-byte to Miningcore lowercase `Guid.ToString("N")` accounting-ID mapping;
+- makes payout-significant quarantine recoverable only through canonical atomic `QUARANTINE_RECONCILIATION` / `QUARANTINE_WAIVER` ADMIN actions with exact immutable-event/effect evidence;
+- defines last-scope temporal-policy deactivation using conservative pre-change clock skew, widened by post-change skew when present;
+- binds **resolved effective** PPLNS/PPLNSBF configuration instead of assumed upstream defaults;
+- binds Miningcore `AdjustShareDifficulty` behavior through a versioned share-difficulty-adjustment policy digest included in the settlement policy;
+- adds PPLNSBF multi-key ordering/boundary vectors and canonical-decimal negatives;
+- makes financially incompatible epoch migration closure mechanical through `NoLiveDependencies`;
+- requires `SettlementEvidenceSummaryV1` before destructive pruning can discard ordinary settlement evidence;
+- retains permanent producer tombstones, truthful contiguous payout/prune frontiers, interval-specific later settlement proofs, full Bitcoin/SegWit evidence checks, and descriptor-derived structural wire baselining.
 
 ## Layering
 
@@ -46,12 +45,13 @@ Current CI checks:
 - layer, error, event and metric registries;
 - exact reviewed protobuf Git/SHA-256 fingerprints;
 - committed descriptor-derived protobuf structural baseline;
-- `buf breaking` against `main` on PRs and against the previous push SHA on direct pushes;
+- ordinary `buf breaking` against `main` on PRs and against an isolated previous push revision on direct pushes;
 - current Core 1.1 hash-chain vectors;
 - current Mining admission/request-identity vectors;
-- Draft 0.6 contract/clock/profile-lifecycle vectors;
-- accounting-schema-v2 merged-mining vectors;
-- current Bitcoin candidate/SegWit evidence vectors;
+- Draft 0.6 final Profile 1.1 contract/clock/policy/quarantine/migration vectors;
+- accounting-schema-v3 merged-mining plus strict parsed-protobuf safety vectors;
+- settlement-scheme and share-difficulty-adjustment policy digests, including PPLNSBF ordering/boundaries;
+- current Bitcoin candidate/SegWit/CVE-class evidence vectors;
 - freeze-completion policy/completeness/idempotency/settlement vectors;
 - state-machine decisions;
 - protobuf compilation and Buf lint;

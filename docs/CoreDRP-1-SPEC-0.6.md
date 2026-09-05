@@ -15,13 +15,13 @@ Draft 0.6 supersedes Draft 0.5 for normative interpretation. Earlier drafts rema
 
 Normative authority, highest first: this specification; incorporated numbered registries; conformance vectors; protobuf definitions; reference tooling. Reference code MUST NOT override the specification or an incorporated registry.
 
-Incorporated registries are: `coredrp-mining-v1-semantics.md`, `coredrp-miningcore-v1-semantics.md`, `coredrp-v1-draft06-contracts.md`, `coredrp-v1-bitcoin-network-policies.md`, `coredrp-v1-admin-actions.md`, `coredrp-v1-errors.md`, `coredrp-v1-error-emission.md`, `coredrp-v1-metrics.md`, and the event/wire registries already in this repository.
+Incorporated registries are: `coredrp-mining-v1-semantics.md`, `coredrp-miningcore-v1-semantics.md`, `coredrp-v1-draft06-contracts.md`, `coredrp-v1-bitcoin-network-policies.md`, `coredrp-v1-settlement-scheme-policies.md`, `coredrp-v1-share-difficulty-adjustment-policies.md`, `coredrp-v1-settlement-safety.md`, `coredrp-v1-temporal-policy.md`, `coredrp-v1-quarantine-safety.md`, `coredrp-v1-profile-transitions.md`, `coredrp-v1-admin-actions.md`, `coredrp-v1-errors.md`, `coredrp-v1-error-emission.md`, `coredrp-v1-metrics.md`, and the event/wire registries already in this repository.
 
 ## 2. Layering
 
 Core owns authenticated identities, opaque scopes, lanes, epochs, sequencing, event time, exact payload bytes, event identity, chaining, sender durability, replay, cumulative ACK, generic checkpoints, gaps, quarantine mechanics, flow control, clock evidence, reconnect/recovery, and ADMIN digest mechanics.
 
-Mining owns mining scope syntax, lane/event meanings, temporal membership/completeness policy, payout safety, mining clock policy, mining admission identity, and deterministic cross-sender order. Miningcore owns PostgreSQL integration, accounting projection, direct Bitcoin evidence, payout/pruning integration, candidate state, and metrics.
+Mining owns mining scope syntax, lane/event meanings, temporal membership/completeness policy, payout-effect scopes, payout safety, mining clock policy, mining admission identity, and deterministic cross-sender order. Miningcore owns PostgreSQL integration, accounting projection, direct Bitcoin evidence, payout/pruning integration, candidate state, and metrics.
 
 Dependency direction is Core <- Mining <- Miningcore only.
 
@@ -29,7 +29,7 @@ Dependency direction is Core <- Mining <- Miningcore only.
 
 A sender durably admits events. A receiver durably commits them. A lane is one ordered stream. An epoch is one UUID-scoped history of one sender/lane. A normal epoch transition drains all durable history. Exceptional abandonment retires an undrainable epoch only with durable gap evidence.
 
-Receiver ID identifies one logical recorder service. Receiver database incarnation identifies one durable database history. `PayoutSafeThrough(scope)` is the greatest receiver-proven time boundary satisfying the Mining completeness rules. `SafePruneThrough(scope)` is the greatest destructible-evidence boundary that does not invalidate required proofs.
+Receiver ID identifies one logical recorder service. Receiver database incarnation identifies one durable database history. `PayoutSafeThrough(scope)` is the greatest receiver-proven time boundary satisfying the Mining completeness rules. `SafePruneThrough(scope)` is the greatest contiguous destructible-evidence boundary that does not invalidate required proofs. `PayoutEffectScopes(E)` is the exact set of Mining scopes into which event `E` creates payout-relevant durable effects.
 
 ## 4. Fixed identifiers and domains
 
@@ -63,7 +63,7 @@ Intrinsic single-object excess is permanent; splittable aggregate excess is retr
 
 TLS 1.3 mTLS is REQUIRED. Hello UUIDs MUST match the unique corresponding CoreDRP URI SAN. Multiple authoritative CoreDRP sender/receiver URI SAN identities are invalid. Other SAN types MAY coexist but are not CoreDRP identity.
 
-Transport authorization and temporal Mining membership are distinct. Transport authorization gates every new scoped event and every scope newly asserted by a checkpoint. It never rewrites historical membership or checkpoint meaning.
+Transport authorization and temporal Mining membership are distinct. Transport authorization gates every new payout-effect scope, including a nested Miningcore auxiliary projection scope, and every scope newly asserted by a checkpoint. It never rewrites historical membership or checkpoint meaning.
 
 ## 9. Handshake validity
 
@@ -110,7 +110,7 @@ Mining 1.1 and Miningcore 1.1 canonical source grammars are defined in `coredrp-
 
 Mining binds scope identity, coin/network, payout scheme, completeness/retention versions, cross-sender ordering, clock parameters, fixed semantic retry threshold, and bounded admission-idempotency policy parameters.
 
-Miningcore binds accounting/persistence schema, direct-candidate validation version, settlement policy, and an exact 32-byte Bitcoin network-policy digest derived from the Mining-selected `network_id`.
+Miningcore binds accounting/persistence schema, direct-candidate validation version, settlement policy, exact Bitcoin network-policy digest, and exact settlement-scheme policy digest. Settlement policy in turn binds the resolved effective payout parameters and `share_difficulty_adjustment_policy_digest32`; two implementations using different `AdjustShareDifficulty` behavior or effective payout values MUST therefore negotiate different Miningcore scope-contract digests.
 
 Completeness mode remains temporal audited policy and is not immutable scope-contract state.
 
@@ -126,11 +126,11 @@ Exact received/WAL payload bytes are identity. Protobuf reserialization is never
 
 ## 14. Two-phase batch validation
 
-Phase A, before the durable-effect transaction: framing, counts, integer/time ranges, size limits, transport authorization, placement, required scope-contract ownership, and complete chain verification including terminal hash.
+Phase A, before the durable-effect transaction: framing, counts, integer/time ranges, size limits, transport authorization, placement, required scope-contract ownership, and complete chain verification including terminal hash. For a payload carrying nested payout-effect scopes, Phase A/early Phase B MUST validate transport authorization and scope-contract ownership independently for every `PayoutEffectScopes(E)` member before any effect is committed.
 
-Phase B, inside the transaction after stream-state lock: expected epoch/sequence/head, temporal membership, checkpoint coverage authorization, profile semantics, referential state, gap/quarantine state, and application effects.
+Phase B, inside the transaction after stream-state lock: expected epoch/sequence/head, temporal membership for every payout-effect scope, checkpoint coverage authorization, profile semantics, referential state, gap/quarantine state, and application effects.
 
-Any failure rolls back the whole current batch; no prefix is committed from an invalid batch. `semantic_retry_threshold` is exactly contract-bound and defaults to 3 in Mining 1.1. After the threshold of consecutive identical semantic failures at the same immutable event identity, receiver emits `SEMANTIC_RETRY_LIMIT` until configuration/validator changes or explicit quarantine authorization.
+Any failure rolls back the whole current batch; no prefix is committed from an invalid batch. `semantic_retry_threshold` is exactly contract-bound and fixed at 3 in Mining 1.1. After the threshold of consecutive identical semantic failures at the same immutable event identity, receiver emits `SEMANTIC_RETRY_LIMIT` until configuration/validator changes or explicit quarantine authorization.
 
 ## 15. Durable admission identity
 
@@ -140,9 +140,9 @@ Admission digest is:
 
 MiningShare request encoding is version 1 from the Mining semantics registry: fixed big-endian integers, binary64 big-endian floats, explicit booleans and optional presence markers, exact UTF-8/ASCII length prefixes, no normalization. Generated `created_unix_ms`, Core sequence, log epoch, and relay UUID are excluded.
 
-Mining idempotency policy v3 uses caller key structure `(producer_id_uuid, producer_generation, admission_sequence)` inside `(sender_id,lane_id)`. Detailed digest/result mappings are retained only for one bounded active generation. A sealed generation is summarized by durable `retired_generation_high_water`; any retry naming a retired generation is rejected locally and can never mint another event. This provides permanent no-double-mint safety with bounded detailed state. Exact rules are in the Mining semantics registry.
+Mining idempotency policy v3 uses caller key structure `(producer_id_uuid, producer_generation, admission_sequence)` in durable namespace `(sender_id,lane_id,scope,producer_id)`. Detailed digest/result mappings are retained only for one bounded active generation. A sealed generation is summarized by durable retired high-water/tombstone evidence; a retired generation or producer UUID can never mint another event.
 
-WAL admission, active-generation mapping, seal/high-water state, and application success obey one durable-before-success boundary.
+WAL admission, active-generation mapping, seal/high-water/tombstone state, and application success obey one durable-before-success boundary.
 
 ## 16. Sender WAL, anchor and recovery
 
@@ -182,7 +182,7 @@ Sender validates ACK then durably remembers receiver ID/incarnation, sequence/ha
 
 ## 21. Receiver transaction semantics
 
-Within one durable transaction: configure required durability; lock stream state; verify receiver/epoch/sequence/head/floors; temporal membership and policy; profile semantics and referential state; exact application effects/evidence; authorized gap/quarantine state; committed head/checkpoint update; COMMIT. Only after COMMIT may ACK be emitted.
+Within one durable transaction: configure required durability; lock stream state; verify receiver/epoch/sequence/head/floors; validate every payout-effect scope's authorization/membership/policy; profile semantics and referential state; exact application effects/evidence; authorized gap/quarantine state; committed head/checkpoint update; COMMIT. Only after COMMIT may ACK be emitted.
 
 ## 22. Epoch lifecycle
 
@@ -192,6 +192,8 @@ Exceptional abandonment `0x0006` is one atomic privileged state transition: it v
 
 If any abandoned record scope is unknown/corrupt, create a lane-wide wildcard gap relevant to every applicable old-epoch scope. Retired-epoch reconciled import verifies old tombstone, exact chain/range/event identities and applies missing effects idempotently without making that epoch current.
 
+Financially incompatible Mining/Miningcore contract transitions additionally obey `NoLiveDependencies` or an explicit versioned migration/new-scope barrier from `coredrp-v1-profile-transitions.md`.
+
 ## 23. Error model
 
 The error registry is authoritative. `ProtocolError.disposition` is redundant informational metadata and MUST equal the registry; mismatch is `MALFORMED_FRAME`.
@@ -200,9 +202,9 @@ Structural, authorization, placement, clock, identity, chain, rollback, membersh
 
 ## 24. Quarantine
 
-Quarantine authorization names sender/lane/epoch/sequence/type/relay UUID/chain hash. Sender retransmits exact immutable bytes. Receiver re-verifies identity/chain and atomically stores evidence plus watermark before ACK.
+Quarantine authorization names sender/lane/epoch/sequence/type/relay UUID/chain hash. Sender retransmits exact immutable bytes. Receiver re-verifies identity/chain and atomically stores evidence plus watermark before ACK. Changed bytes are `EVENT_IDENTITY_MISMATCH`, never a correction of the original event.
 
-Changed bytes are `EVENT_IDENTITY_MISMATCH`, never a correction of the original event.
+Payout-significant quarantine starts `UNRESOLVED`. Profile 1.1 permits only ADMIN `0x0008 QUARANTINE_RECONCILIATION` to transition it to `RESOLVED_RECONCILED` and ADMIN `0x0009 QUARANTINE_WAIVER` to transition it to `RESOLVED_WAIVED`. Reconciliation revalidates the same immutable payload under a named semantic authority and atomically applies every missing financial effect; waiver applies no synthetic effect. Exact evidence/digest grammar is in `coredrp-v1-quarantine-safety.md`.
 
 ## 25. Gaps and resolution semantics
 
@@ -211,16 +213,23 @@ Gap scope is exact scope or wildcard lane scope and records sender/lane/epoch/ra
 Statuses have payout meaning:
 
 - `UNRESOLVED`: blocks PayoutSafe for every relevant range/scope;
-- `RESOLVED_RECONCILED`: verified import has restored the missing effects/evidence, so the reconciled range no longer blocks PayoutSafe;
+- `RESOLVED_RECONCILED`: verified import has restored the missing effects/evidence;
 - `RESOLVED_WAIVED`: uncertainty is accepted administratively but completeness was not proved; the waived range **never becomes PayoutSafe** and MUST NOT advance `PayoutSafeThrough`.
 
 A waiver may support an explicit `SETTLE_WITHOUT_FENCE_OVERRIDE` for a named settlement, but that override is distinct from PayoutSafe and does not manufacture or advance the safety frontier.
 
 ## 26. Checkpoints and authorization
 
-Mining checkpoints are lane-global with empty Core scope. Covered scopes derive from persisted epoch scope contracts plus temporal membership/mode at checkpoint time.
+Mining checkpoints are lane-global with empty Core scope.
 
-Before accepting a new checkpoint, receiver verifies sender authorization for every scope it would cover. Revoked scope authorization rejects the checkpoint with `UNAUTHORIZED_SCOPE` until policy is ended/reconciled or uncertainty is explicitly recorded. Historical checkpoints are never reinterpreted after later revocation.
+For sender/epoch/lane, covered scopes derive from the union of:
+
+1. persisted epoch Mining scope contracts that are active under temporal membership/mode at checkpoint time; and
+2. every Mining scope into which that sender has admitted a payout-relevant effect in the epoch, including Miningcore paired auxiliary projection scopes.
+
+A scope from item 2 remains in the sender's completeness history until its temporal policy is cleanly ended/reconciled; merely nesting it under another Core event scope never removes it from checkpoint coverage.
+
+Before accepting a new checkpoint, receiver verifies sender transport authorization and applicable temporal membership/policy for every scope it would cover. Revoked scope authorization rejects the checkpoint with `UNAUTHORIZED_SCOPE` until policy is ended/reconciled or uncertainty is explicitly recorded. Historical checkpoints are never reinterpreted after later revocation.
 
 ## 27. Anti-backdating
 
@@ -244,30 +253,38 @@ For each ClockStateUpdate, sender validates before trust:
 
 - generation > last accepted generation in this stream;
 - `evidence_valid_for_ms` is `1..effective_evidence_expiry_ms`;
-- `effective_permitted_skew_ms` equals the strictest currently bound lane policy, never a receiver-selected looser value;
+- `effective_permitted_skew_ms` equals the strictest currently bound lane policy;
 - GOOD requires lower/upper bounds both present, `lower <= upper`, and `-S <= lower <= upper <= S`;
 - BAD with bounds requires an interval wholly outside `[-S,S]`;
 - UNKNOWN MUST NOT claim a fully GOOD interval;
 - a present probe ID refers to a valid receiver observation for this stream;
-- enum/reason/state combinations follow the state matrix in the conformance registry.
+- enum/reason/state combinations follow the normative clock-state registry.
 
-Contradictory or out-of-policy state update is `CLOCK_CONTRACT_VIOLATION`; structurally malformed presence/ranges are `MALFORMED_FRAME`.
+A verified `SENDER_PROCESSING_LIMIT` exceedance is deterministically BAD. Contradictory/out-of-policy state update is `CLOCK_CONTRACT_VIOLATION`; structurally malformed presence/ranges are `MALFORMED_FRAME`.
 
 ## 30. Clock policy, BAD latch, grace, recovery
 
 Multi-scope lane uses the strictest active clock parameters. Local BAD or remote BAD stops covered admission/checkpoints.
 
-Remote UNKNOWN from startup/ordinary evidence expiry may use configured UNKNOWN grace; it never advances trusted checkpoints. **BAD is latched**: expiry of BAD evidence produces `RECOVERING`, not a fresh UNKNOWN grace that resumes admission. RECOVERING continues to block covered admission/checkpoint advancement.
+Remote UNKNOWN from startup/ordinary evidence expiry may use configured UNKNOWN grace; it never advances trusted checkpoints. BAD is latched: expiry of BAD evidence produces `RECOVERING`, not a fresh UNKNOWN grace that resumes admission. RECOVERING continues to block covered admission/checkpoint advancement.
 
 Exit BAD/RECOVERING only when trusted UTC is not behind durable last event time and at least three fresh GOOD observations span at least one effective probe interval. A newer definitive BAD resets recovery evidence. Receiver wall-step detection compares wall and monotonic elapsed deltas; excessive divergence is BAD.
 
 ## 31. Mining event admission and ownership
 
-Mining scope is exact `[A-Za-z0-9._-]{1,64}` ASCII. Under RELAY_REQUIRED, every payout-relevant lane-0 MiningShareEvent or MiningcoreAccountingShareEvent at event time `M` requires durable temporal membership `(sender,scope,M)`. Transport-authorized but temporally unlisted sender fails with `TEMPORAL_MEMBERSHIP_REQUIRED`.
+Mining scope is exact `[A-Za-z0-9._-]{1,64}` ASCII.
 
-`0x0100` requires Mining(scope). `0x0200`, `0x0201`, `0x0202` require both Mining(scope) and Miningcore(scope) exact selected versions/digests.
+For every payout-relevant lane-0 event `E` at event time `M`, determine `PayoutEffectScopes(E)` from the incorporated Mining/Miningcore registry. For **each** `Q in PayoutEffectScopes(E)` independently:
 
-Payload semantics are exactly the incorporated Mining/Miningcore semantics registries.
+- sender MUST be transport-authorized for `Q`, otherwise `UNAUTHORIZED_SCOPE`;
+- exact required Mining/Miningcore scope contracts MUST be selected for `Q`;
+- if mode `(Q,M)` is RELAY_REQUIRED, durable temporal membership `(sender,Q,M)` MUST exist, otherwise `TEMPORAL_MEMBERSHIP_REQUIRED`.
+
+For `0x0100`, the set contains only `Event.scope`. For `0x0200`, the set contains `primary.scope` and also `paired.scope` when present. A sender cannot write auxiliary financial effects into a scope while remaining absent from that scope's RequiredSender/completeness history.
+
+`0x0100` requires Mining(Q). `0x0200` requires Mining(Q)+Miningcore(Q) for every projection scope. `0x0201`/`0x0202` require both contracts on their enclosing scope.
+
+Payload semantics are exactly the incorporated Mining/Miningcore semantics registries. Miningcore accounting schema 3 additionally requires a nonzero RFC 9562 accounting UUID, positive reward basis, non-empty session/source IP, positive achieved share difficulty, `preserve_created=true`, and `block_only=false` for every ordinary projection.
 
 ## 32. Temporal membership/mode and retroactivity
 
@@ -277,7 +294,9 @@ Ending non-empty membership at `valid_until` requires trusted completeness throu
 
 An ordinary membership start/end or mode change with `effective_unix_ms <= PayoutSafeThrough(scope)` MUST be rejected with `ADMIN_ACTION_CONFLICT`. Ordinary future changes must also be beyond the current frontier plus applicable clock uncertainty.
 
-Retroactive correction uses an explicitly audited temporal-policy reconciliation operation. It MUST block further safety-frontier advancement for the affected scope, record the historical uncertainty, and MUST NOT silently redefine or move backward a previously proven frontier. Settlement requiring an exception uses the separate settle-without-fence override.
+For activation/addition, transition skew is the post-change effective multi-scope skew. For MEMBERSHIP_END or RELAY_REQUIRED→NO_RELAY_REQUIRED, transition skew uses the pre-change effective skew while the scope is still active, widened by post-change skew when one exists. Removing the sender's last active clock-governed scope therefore remains well-defined and conservative rather than failing because no post-change reducer exists.
+
+Retroactive correction uses an explicitly audited temporal-policy reconciliation operation. It MUST block further safety-frontier advancement for the affected scope, record the historical uncertainty, and MUST NOT silently redefine or move backward a previously proven frontier.
 
 ## 33. PayoutSafe
 
@@ -285,21 +304,27 @@ Receiver decides PayoutSafe using receiver-observable durable facts only.
 
 `PayoutSafe(Q,T)` requires: durable known mode at T; when RELAY_REQUIRED, all `RequiredSender(Q,T)` have receiver-committed trusted checkpoint evidence through the required skew-adjusted boundary; each checkpoint satisfied clock policy; no relevant UNRESOLVED gap; no relevant RESOLVED_WAIVED uncertainty covering T; no payout-significant unresolved quarantine; policy/contract evidence durable before use; anti-backdating and epoch-floor invariants preventing later covered history at/before T.
 
-A checkpoint contributes immediately after the receiver transaction that commits its event/effect/checkpoint proof. Sender ACK receipt/persistence is **not required** for PayoutSafe and cannot be used as a receiver-side proof prerequisite because it is not receiver-observable on a healthy stream.
+RequiredSender/completeness history includes a sender that has admitted payout-relevant auxiliary projection effects into Q; nested projection scope never weakens this predicate.
 
-`PayoutSafeThrough(Q)` is greatest durably proven T and is monotonic. A waiver never advances it.
+A checkpoint contributes immediately after the receiver transaction that commits its event/effect/checkpoint proof. Sender ACK receipt/persistence is **not required** for PayoutSafe.
+
+`PayoutSafeThrough(Q)` is greatest durably proven contiguous T and is monotonic. A waiver never advances it.
 
 ## 34. SafePruneThrough
 
 `SafePruneThrough(Q)` is monotonic and, for payout evidence, never exceeds `PayoutSafeThrough(Q)`. It constrains destructive removal of receiver evidence and sender/application state needed for proofs.
 
-Never prune receiver/epoch anchors, policy history needed for proof, unresolved/reconciled/waived gap audit, quarantine/override audit, retired-epoch import evidence, producer generation high-water records, or settlement evidence still required.
+Never prune receiver/epoch anchors, policy history needed for proof, unresolved/reconciled/waived gap audit, quarantine/override audit, retired-epoch import evidence, producer high-water/tombstone records, or settlement evidence still required.
+
+Later evidence beyond a permanently capped contiguous frontier may use settlement-specific pruning only under `SettlementPruneSafe`, which requires a valid `SettlementEvidenceSummaryV1` before ordinary evidence destruction.
 
 Sender WAL pruning additionally requires sender-durable remembered ACK per Section 20.
 
 ## 35. Mining schemes and order
 
-PPLNS/PPLNSBF/PROP settlement requires PayoutSafe. Destructive pruning is no farther than scheme cutoff and SafePruneThrough. PPS and custodial SOLO follow their profile-defined non-fence semantics. Direct consensus submission never waits for remote completeness.
+PPLNS/PPLNSBF/PROP settlement requires `SettlementSafe` over the exact scheme dependency set derived from the bound resolved scheme parameters and share-difficulty adjustment policy. The contiguous PayoutSafe frontier remains a sufficient conservative proof where it covers the entire dependency interval, but a later non-intersecting settlement may use its settlement-specific proof.
+
+PPS and custodial SOLO follow their profile-defined non-fence semantics. Direct consensus submission never waits for remote completeness.
 
 Canonical cross-sender accounting order is event time, sender UUID bytes, sequence, relay UUID bytes.
 
@@ -329,7 +354,7 @@ Heartbeats and Goodbye are operational only. Their timestamps/state are not cloc
 
 ## 40. Miningcore accounting and candidate state
 
-Every Miningcore accounting semantic rule is normative in `coredrp-miningcore-v1-semantics.md`: SINGLE vs PARENT+AUXILIARY, projection consistency, exact decimal grammar, ID/reward/PPS constraints, preserve-created, block/statistical flags, and post-parse limits.
+Every Miningcore accounting semantic rule is normative in `coredrp-miningcore-v1-semantics.md`: SINGLE vs PARENT+AUXILIARY, projection-local authorization/membership, shared merged-mining proof identity, accounting UUID mapping, strict required accounting fields, preserve-created, `block_only=false`, and post-parse limits.
 
 Candidate IDs and state transitions, attempts/misses/last-attempt monotonicity, same-scope referential integrity, UUID/hash/script representation, and direct-candidate limits are also normative there.
 
@@ -337,7 +362,7 @@ Candidate IDs and state transitions, attempts/misses/last-attempt monotonicity, 
 
 Receiver performs the full parser/Merkle/witness/duplicate-txid/BIP34/output classification defined by the Miningcore semantics registry.
 
-Receiver-side Bitcoin validation policy is not free configuration once a scope contract is selected. `coredrp-v1-bitcoin-network-policies.md` defines a canonical `bitcoin_network_policy_digest` over network ID, network/genesis identity, BIP34 activation, direct-candidate validation version, and closed commitment-class allow-list. The Miningcore scope semantic contract carries this digest.
+Receiver-side Bitcoin validation policy is not free configuration once a scope contract is selected. `coredrp-v1-bitcoin-network-policies.md` defines a canonical `bitcoin_network_policy_digest`; the Miningcore scope semantic contract carries this digest.
 
 Two receivers using different network-validation policy MUST produce different Miningcore semantic digests and cannot silently interoperate under one epoch binding.
 
@@ -349,7 +374,7 @@ Every request includes 16-byte idempotency UUID and uint64 expected-state-versio
 
 ADMIN idempotency lookup, same-key/digest replay check, expected-state-version check, mutation, audit record, and stored result MUST occur in one durable serializable/locked state transition. Same key+same digest returns the original stored result without reapplying effects. Same key+different digest is `IDEMPOTENCY_KEY_CONFLICT`. State-version mismatch is `ADMIN_ACTION_CONFLICT`.
 
-Temporal policy actions additionally enforce Section 32 retroactivity rules. Gap waiver follows Section 25 and cannot manufacture PayoutSafe.
+Temporal policy actions enforce Section 32. Gap waiver follows Section 25. Financial quarantine transitions use canonical `0x0008 QUARANTINE_RECONCILIATION` and `0x0009 QUARANTINE_WAIVER`: reconciliation atomically applies the missing deterministic financial effects under the bound semantic authority; waiver applies none and cannot manufacture safety.
 
 ## 43. Security boundary
 
@@ -357,7 +382,7 @@ mTLS/hash chains protect authenticated transport and consistent anchored history
 
 ## 44. Conformance and CI
 
-CI validates canonical spec structure; incorporated registries; protobuf compilation/lint; layer direction; error/event/metric consistency; SHA-256 wire fingerprints; cryptographic, semantic-contract, epoch-binding, admission, ADMIN, profile, Bitcoin, reconnect, policy, clock, gap, idempotency, and WAL/state vectors; independent C# reconstruction; and a bounded TLA+ model with realistic unsafe mutations.
+CI validates canonical spec structure; incorporated registries; protobuf compilation/lint; layer direction; error/event/metric consistency; SHA-256 wire fingerprints; descriptor structural wire baseline; Buf compatibility; cryptographic, semantic-contract, settlement-policy/adjustment, epoch-binding, admission, ADMIN, profile, Bitcoin, reconnect, policy, clock, gap, idempotency, and WAL/state vectors; independent C# reconstruction; and a bounded TLA+ model with realistic unsafe mutations.
 
 These are conformance/regression checks, not proof of the entire protocol.
 
@@ -365,7 +390,7 @@ These are conformance/regression checks, not proof of the entire protocol.
 
 Model distinguishes WAL tail, sender ACK, receiver durable state, receiver-committed checkpoint evidence, epochs/retirement, atomic exceptional transition evidence, gap status, writer ownership, clock/membership proof gates, and payout/prune frontiers.
 
-Payout frontier advances from receiver-committed checkpoint proof and policy gates without sender ACK dependency. ACK remains relevant to sender prune safety. Model mutations MUST include: prune without remembered ACK, ACK before receiver commit, normal epoch transition without drain, payout advance without receiver evidence/policy gates, and exceptional transition without atomically recorded gap evidence.
+Payout frontier advances from receiver-committed checkpoint proof and policy gates without sender ACK dependency. ACK remains relevant to sender prune safety. Model mutations MUST include: prune without remembered ACK, ACK before receiver commit, normal epoch transition without drain, payout advance without receiver evidence/policy gates, exceptional transition without atomically recorded gap evidence, and stale epoch/policy proof reuse.
 
 ## 46. Evolution
 
@@ -379,11 +404,11 @@ CoreDRP does not standardize Byzantine consensus, independent-database active/ac
 
 ## 48. Miningcore reference requirements
 
-Miningcore implementation uses dedicated CoreDRP ingest, PostgreSQL durability, sender/receiver fencing, bounded-generation permanent no-double-mint admission safety, temporal-membership enforcement, scope-contract ownership, explicit gap/waiver semantics, receiver replacement approval, canonical accounting order, network-policy-bound Bitcoin candidate validation, candidate referential integrity, and the normative metrics registry.
+Miningcore implementation uses dedicated CoreDRP ingest, PostgreSQL durability, sender/receiver fencing, bounded-generation permanent no-double-mint admission safety, temporal-membership enforcement for every payout-effect scope, independent projection-scope transport authorization, exact scope-contract ownership, explicit gap/quarantine reconciliation/waiver semantics, receiver replacement approval, canonical accounting order, resolved settlement/adjustment-policy binding, network-policy-bound Bitcoin candidate validation, candidate referential integrity, versioned prune summaries, mechanical financial migration closure, and the normative metrics registry.
 
 ## 49. Required freeze corpus
 
-Before stable release, corpus includes: lane/type/scope/sequence/hash/UUID boundaries; complete Core 1.1/Profile 1.1 compatibility cases; full Draft 0.6 epoch-binding preimage/digest; semantic-contract and network-policy digests; reconnect/receiver replacement; WAL/anchor failure ordering; bounded producer-generation idempotency and retired-generation rejection; event-time overflow; ClockStateUpdate malformed/stale/BAD-latch/reconnect-generation cases; temporal policy retroactivity; exact/reconciled/waived gap payout semantics; flow charge/zero windows; Mining/Miningcore semantic positives and negatives; Bitcoin odd/even Merkle, duplicate txid, SegWit/BIP34/network-policy negatives; ADMIN replay/conflict/retroactivity; and realistic formal mutations.
+Before stable release, corpus includes: lane/type/scope/sequence/hash/UUID boundaries; complete Core 1.1/Profile 1.1 compatibility cases; full Draft 0.6 epoch-binding preimage/digest; semantic-contract, network-policy, settlement-policy and share-difficulty-adjustment digests; PPLNSBF key ordering/canonical decimal negatives; reconnect/receiver replacement; WAL/anchor failure ordering; bounded producer-generation idempotency and retired-generation rejection; event-time overflow; ClockStateUpdate malformed/stale/BAD-latch/reconnect-generation cases; last-scope clock deactivation; temporal policy retroactivity; exact/reconciled/waived gap and quarantine payout semantics; projection-scope authorization/membership negatives; accounting schema required-field/block-only negatives; flow charge/zero windows; Mining/Miningcore semantic positives and negatives; Bitcoin odd/even Merkle, duplicate txid, SegWit/BIP34/network-policy negatives; ADMIN replay/conflict/quarantine transitions; migration-closure and prune-summary cases; and realistic formal mutations.
 
 Crypto-only high-sequence vectors carry explicit synthetic previous-chain anchors and are never represented as reachable history.
 

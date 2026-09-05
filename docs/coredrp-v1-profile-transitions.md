@@ -20,7 +20,7 @@ A future registry version may name a specific old/new digest pair and an exact m
 
 Any non-identical Mining or Miningcore scope-contract digest not explicitly listed compatible is financially incompatible and requires the migration barrier in Section 3.
 
-This includes changes to payout scheme, settlement scheme parameters/digest, completeness/retention/admission policy, network validation policy, accounting schema, persistence schema, direct-candidate validation, or any future financial interpretation field.
+This includes changes to payout scheme, settlement scheme/adjustment parameters or digest, completeness/retention/admission policy, network validation policy, accounting schema, persistence schema, direct-candidate validation, or any future financial interpretation field.
 
 ## 2. Producer-generation contract boundary
 
@@ -33,26 +33,41 @@ Before activating a successor epoch whose Mining scope-contract digest differs f
 - the durable producer tombstone/high-water state MUST be committed before successor activation;
 - the successor epoch starts new active generations only under the new digest.
 
-An active generation MUST NOT straddle two different Mining semantic-contract digests. The new generation limit or admission-policy version is never applied retroactively to an old active generation.
+An active generation MUST NOT straddle two different Mining semantic-contract digests. Failure to seal is `ADMIN_ACTION_CONFLICT`.
 
-Failure to seal is `ADMIN_ACTION_CONFLICT`; the successor epoch is not activated for that scope.
+## 3. Mechanical financial migration barrier
 
-## 3. Financial migration barrier
+For old scope-contract pair `C`, define `NoLiveDependencies(Q,C)` as true only when **every** condition below is durably true under explicit database locks/snapshot consistency:
+
+1. no open/unfinalized PPLNS, PPLNSBF or PROP settlement/window whose dependency set records `C`;
+2. no unsettled PPS liability/accounting effect accepted under `C`;
+3. no unfinalized CUSTODIAL_SOLO winning-share/block attribution under `C`;
+4. no PREPARED, SUBMITTED_UNCERTAIN, OBSERVED_ACTIVE or QUARANTINED direct candidate whose proof binds `C`;
+5. no `UNRESOLVED` or `RESOLVED_WAIVED` gap/quarantine/policy-reconciliation range whose affected financial history binds `C`;
+6. no live settlement override whose audit dependency still references ordinary evidence under `C`;
+7. no retained-epoch import/reconciliation operation in progress for effects interpreted under `C`;
+8. no active producer generation or in-flight admission under the old Mining digest;
+9. every final settlement/proof that depended on deletable old ordinary evidence has the exact `SettlementEvidenceSummaryV1` required by `coredrp-v1-settlement-safety.md`;
+10. every application-specific effect row under `C` is either final/immutable or explicitly named by a future versioned migration action.
+
+`closed-old-state barrier` means exactly `NoLiveDependencies(Q,C) == true`. Implementations MUST NOT replace this predicate with age, epoch retirement, zero currently connected senders, an operator boolean, or a best-effort query that omits any listed dependency class.
 
 Before a FINANCIALLY_INCOMPATIBLE successor scope contract becomes active, the receiver/operator MUST establish one of:
 
-1. **closed-old-state barrier:** every settlement/window/candidate/accounting effect whose dependency set is interpreted under the old digest is final and its durable proof/audit state no longer requires new events under that old interpretation; or
+1. `NoLiveDependencies(Q,C) == true`; or
 2. **explicit migration:** a future versioned migration action/registry defines exact old→new transformation and preserves old proof identity; or
 3. **new scope identity:** operation moves to a distinct scope so old and new financial semantics cannot be confused.
 
-Profile 1.1 does not define an implicit migration between non-identical financial contracts.
+Profile 1.1 defines no implicit migration between non-identical financial contracts.
 
 PPLNS/PPLNSBF/PROP windows MUST NOT silently cross a financially incompatible contract boundary. PPS liabilities already accepted under the old contract remain governed by their immutable accepting evidence and MUST be settled/audited under that evidence.
 
 ## 4. Retention and proof binding
 
-Every settlement proof records the exact Mining and Miningcore scope-contract digests and the settlement-scheme-policy digest used to derive its dependencies. Pruning decisions MUST use those recorded proof bindings rather than current configuration.
+Every settlement proof records the exact Mining and Miningcore scope-contract digests and the settlement-scheme-policy/adjustment digest used to derive its dependencies. Pruning and migration-closure decisions MUST use those recorded proof bindings rather than current configuration.
 
 ## 5. Receiver activation
 
-The receiver MUST evaluate this registry before recording successor epoch approval/transition for an affected scope. A sender and receiver MUST NOT advertise/accept the successor binding as active while the required producer seals or financial migration barrier are incomplete.
+The receiver MUST evaluate this registry before recording successor epoch approval/transition for an affected scope. The closure predicate and producer seals MUST be evaluated under the same serializable/explicitly locked activation transaction or under an immutable snapshot/version whose state version is rechecked at commit.
+
+A sender and receiver MUST NOT advertise/accept the successor binding as active while the required producer seals, dependency closure, or explicit migration barrier are incomplete.

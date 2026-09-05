@@ -1,1 +1,145 @@
-{"format":"CoreDRP/1 Draft 0.6 profile-freeze conformance vectors","compatibility_cases":[{"case_kind":"core_1_1","peer_core_minor":1,"expected":"CORE_1_1"},{"case_kind":"core_1_0_peer","peer_core_minor":0,"expected":"PROTOCOL_VERSION_MISMATCH"},{"case_kind":"mining_1_1","core":[1,1],"minimum_core":[1,1],"expected":"ACCEPT"},{"case_kind":"miningcore_requires_mining","mining_selected":false,"expected":"REJECT"}],"semantic_contracts":{"mining":{"source_hex":"000e636f72656472702e6d696e696e670000000100000001000462746331010007626974636f696e00076d61696e6e65740002000101000007d0000000fa00001388000000fa00003a980001d4c00003000f4240","sha256":"d21a908c547bcd177ed82b19ccf16bc6ea75b7631d86b38c3e86480b9e9f3307"},"miningcore":{"source_hex":"0012636f72656472702e6d696e696e67636f726500000001000000010004627463310000000200000001000200020f477ab81c34cfc8ec31e146bd86f6760554e7d803d9522c7b0e0e818f412e3a8218444045964b49331e0e7e74590574ac552f522aa482b2aa60d7fca2637725","sha256":"789656aeb1b8d523d1fd3a0000cbdf65f388ce27569c77ae7ff7b3fe306e2905"}},"network_policies":{"mainnet":{"source_hex":"000100076d61696e6e6574000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f0000000000037a5b000200010006424950313431","sha256":"0f477ab81c34cfc8ec31e146bd86f6760554e7d803d9522c7b0e0e818f412e3a"},"synthetic_regtest":{"source_hex":"0001001173796e7468657469632d7265677465737411111111111111111111111111111111111111111111111111111111111111110000000000000000000200010006424950313431","sha256":"16e8587c49b21834ab025cc463ac576b9f4301428e9530303b6bdd779b7394c4"}},"settlement_policies":{"pplns_factor_2":{"source_hex":"00010100010006666163746f72000132","sha256":"8218444045964b49331e0e7e74590574ac552f522aa482b2aa60d7fca2637725"}},"contract_binding":{"core_major":1,"core_minor":1,"lane":0,"profile_entries":[{"profile_id":"coredrp.mining","major":1,"minor":1,"has_digest":false},{"profile_id":"coredrp.miningcore","major":1,"minor":1,"has_digest":false}],"scope_contracts":[{"scope_hex":"62746331","profile_id":"coredrp.mining","major":1,"minor":1,"digest_hex":"d21a908c547bcd177ed82b19ccf16bc6ea75b7631d86b38c3e86480b9e9f3307"},{"scope_hex":"62746331","profile_id":"coredrp.miningcore","major":1,"minor":1,"digest_hex":"789656aeb1b8d523d1fd3a0000cbdf65f388ce27569c77ae7ff7b3fe306e2905"}],"event_types":[1,256,512],"preimage_hex":"436f7265445250312d434f4e54524143540000000100000001000002000e636f72656472702e6d696e696e670000000100000001000012636f72656472702e6d696e696e67636f72650000000100000001000002000462746331000e636f72656472702e6d696e696e670000000100000001d21a908c547bcd177ed82b19ccf16bc6ea75b7631d86b38c3e86480b9e9f33070004627463310012636f72656472702e6d696e696e67636f72650000000100000001789656aeb1b8d523d1fd3a0000cbdf65f388ce27569c77ae7ff7b3fe306e29050003000101000200","sha256":"c1d2dda304ebe59b6cdbf197c8daaa54c40787f5b551d99fffab32f804967dc0"},"idempotency_generation_cases":[{"case_kind":"new_next_sequence","active_generation":4,"retired_high_water":3,"last_new_sequence":9,"request_generation":4,"request_sequence":10,"expected":"ADMIT_NEW"},{"case_kind":"retired_generation","active_generation":4,"retired_high_water":3,"request_generation":3,"request_sequence":999,"expected":"CALLER_ADMISSION_GENERATION_RETIRED"},{"case_kind":"retired_producer_reregister","producer_tombstoned":true,"expected":"PRODUCER_UUID_RETIRED"},{"case_kind":"contract_change_active_generation","old_contract":"aa","new_contract":"bb","active_generation_open":true,"expected":"SEAL_BEFORE_CONTRACT_TRANSITION"},{"case_kind":"contract_same_active_generation","old_contract":"aa","new_contract":"aa","active_generation_open":true,"expected":"CONTINUE"}],"clock_state_cases":[{"case_kind":"good_probe","state":"GOOD","reason":"PROBE_EVIDENCE","probe":true,"bounds":"GOOD","expected":"GOOD"},{"case_kind":"bad_processing_limit","state":"BAD","reason":"SENDER_PROCESSING_LIMIT","probe":true,"bounds":null,"processing_exceeded":true,"expected":"BAD"},{"case_kind":"unknown_processing_limit","state":"UNKNOWN","reason":"SENDER_PROCESSING_LIMIT","probe":true,"bounds":null,"processing_exceeded":true,"expected":"CLOCK_CONTRACT_VIOLATION"},{"case_kind":"unknown_probe_overlap","state":"UNKNOWN","reason":"PROBE_EVIDENCE","probe":true,"bounds":"UNKNOWN","expected":"UNKNOWN"},{"case_kind":"bad_wall_step","state":"BAD","reason":"RECEIVER_WALL_STEP","probe":false,"bounds":null,"expected":"BAD"}],"staging_sender_cases":[{"case_kind":"membership_start","sender":"a","expected":["a"]},{"case_kind":"membership_end","sender":"a","expected":["a"]},{"case_kind":"mode_required_to_none","old_mode":"RELAY_REQUIRED","new_mode":"NO_RELAY_REQUIRED","members_t_minus_1":["a","b"],"members_t":["b"],"expected":["a","b"]},{"case_kind":"mode_none_to_required","old_mode":"NO_RELAY_REQUIRED","new_mode":"RELAY_REQUIRED","members_t_minus_1":[],"members_t":["b","c"],"expected":["b","c"]}],"clock_uncertainty_cases":[{"case_kind":"two_senders","effective_skews_ms":[1000,2500],"expected_ms":5000},{"case_kind":"empty_set","effective_skews_ms":[],"expected_ms":0}],"settlement_prune_cases":[{"case_kind":"later_final_safe","all_settlements_final":true,"intersects_unsafe_audit":false,"live_dependencies":false,"proof_summarized":true,"scheme_allows":true,"expected":true},{"case_kind":"intersects_waived_hole","all_settlements_final":true,"intersects_unsafe_audit":true,"live_dependencies":false,"proof_summarized":true,"scheme_allows":true,"expected":false},{"case_kind":"other_live_window","all_settlements_final":false,"intersects_unsafe_audit":false,"live_dependencies":true,"proof_summarized":true,"scheme_allows":true,"expected":false}],"quarantine_cases":[{"case_kind":"financial_unresolved","event_type":256,"state":"UNRESOLVED","expected_settlement_safe":false},{"case_kind":"financial_reconciled","event_type":512,"state":"RESOLVED_RECONCILED","expected_settlement_safe":true},{"case_kind":"financial_waived","event_type":512,"state":"RESOLVED_WAIVED","expected_settlement_safe":false}],"profile_transition_cases":[{"case_kind":"same_digest","old_mining":"aa","new_mining":"aa","old_mc":"bb","new_mc":"bb","old_state_closed":false,"expected":"ALLOW"},{"case_kind":"changed_digest_open_state","old_mining":"aa","new_mining":"cc","old_mc":"bb","new_mc":"bb","old_state_closed":false,"expected":"ADMIN_ACTION_CONFLICT"},{"case_kind":"changed_digest_closed_state","old_mining":"aa","new_mining":"cc","old_mc":"bb","new_mc":"bb","old_state_closed":true,"expected":"ALLOW"}],"temporal_reconciliation_cases":[{"case_kind":"correct_end_only","correction_kind":3,"same_scope":true,"same_sender":true,"same_valid_from":true,"new_generation_matches_admin":true,"non_overlapping":true,"expected":"ACCEPT"},{"case_kind":"correct_end_changes_start","correction_kind":3,"same_scope":true,"same_sender":true,"same_valid_from":false,"new_generation_matches_admin":true,"non_overlapping":true,"expected":"ADMIN_ACTION_CONFLICT"},{"case_kind":"new_generation_mismatch","correction_kind":2,"same_scope":true,"same_sender":true,"same_valid_from":true,"new_generation_matches_admin":false,"non_overlapping":true,"expected":"ADMIN_ACTION_CONFLICT"},{"case_kind":"overlap_after_replace","correction_kind":2,"same_scope":true,"same_sender":true,"same_valid_from":true,"new_generation_matches_admin":true,"non_overlapping":false,"expected":"ADMIN_ACTION_CONFLICT"}]}
+{
+  "format": "CoreDRP/1 Draft 0.6 final Profile 1.1 freeze conformance vectors",
+  "compatibility_cases": [
+    {"case_kind":"core_1_1","peer_core_minor":1,"expected":"CORE_1_1"},
+    {"case_kind":"core_1_0_peer","peer_core_minor":0,"expected":"PROTOCOL_VERSION_MISMATCH"},
+    {"case_kind":"mining_1_1","core":[1,1],"minimum_core":[1,1],"expected":"ACCEPT"},
+    {"case_kind":"miningcore_requires_mining","mining_selected":false,"expected":"REJECT"}
+  ],
+  "semantic_contracts": {
+    "mining": {
+      "source_hex":"000e636f72656472702e6d696e696e670000000100000001000462746331010007626974636f696e00076d61696e6e65740002000101000007d0000000fa00001388000000fa00003a980001d4c00003000f4240",
+      "sha256":"d21a908c547bcd177ed82b19ccf16bc6ea75b7631d86b38c3e86480b9e9f3307"
+    },
+    "miningcore": {
+      "source_hex":"0012636f72656472702e6d696e696e67636f726500000001000000010004627463310000000300000001000200030f477ab81c34cfc8ec31e146bd86f6760554e7d803d9522c7b0e0e818f412e3a7fab911a63b4a76576088f1ef27337132e0ae7fb55e040cd7df119ed66fa89e0",
+      "sha256":"35589865f465db5a241e9b70f9da79e5d93f369a6ed2b21eed9c0fc2987f0d0e"
+    }
+  },
+  "network_policies": {
+    "mainnet": {
+      "source_hex":"000100076d61696e6e6574000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f0000000000037a5b000200010006424950313431",
+      "sha256":"0f477ab81c34cfc8ec31e146bd86f6760554e7d803d9522c7b0e0e818f412e3a"
+    },
+    "synthetic_regtest": {
+      "source_hex":"0001001173796e7468657469632d7265677465737411111111111111111111111111111111111111111111111111111111111111110000000000000000000200010006424950313431",
+      "sha256":"16e8587c49b21834ab025cc463ac576b9f4301428e9530303b6bdd779b7394c4"
+    }
+  },
+  "adjustment_policies": {
+    "identity": {
+      "source_hex":"000100086964656e746974790000",
+      "sha256":"512714e3717013d13566d57aef8ae1fee13b996cf4f0adf6e20eb05ff4d5edcf"
+    },
+    "constant_multiplier_256": {
+      "source_hex":"00010013636f6e7374616e745f6d756c7469706c6965720001000a6d756c7469706c6965720003323536",
+      "sha256":"99081a8e8af2a531e8eff832b128badea32ed188e59245e1a9845942480b1b34"
+    }
+  },
+  "settlement_policies": {
+    "pplns_factor_2_identity": {
+      "source_hex":"000201512714e3717013d13566d57aef8ae1fee13b996cf4f0adf6e20eb05ff4d5edcf00010006666163746f72000132",
+      "sha256":"7fab911a63b4a76576088f1ef27337132e0ae7fb55e040cd7df119ed66fa89e0"
+    },
+    "pplnsbf_factor_2_blockfinder_5_identity": {
+      "source_hex":"000202512714e3717013d13566d57aef8ae1fee13b996cf4f0adf6e20eb05ff4d5edcf00020017626c6f636b5f66696e6465725f70657263656e746167650001350006666163746f72000132",
+      "sha256":"257845e00475f031c19fd217a4fa86a5fe3c8aa190cf92ac9358377c4445e059"
+    },
+    "pplnsbf_factor_2_blockfinder_0_identity": {
+      "source_hex":"000202512714e3717013d13566d57aef8ae1fee13b996cf4f0adf6e20eb05ff4d5edcf00020017626c6f636b5f66696e6465725f70657263656e746167650001300006666163746f72000132",
+      "sha256":"9fad9974b64d4c2952a8b564cfc2313fbb7435881df8f6c3a20a91ad27e73770"
+    },
+    "pplnsbf_factor_2_blockfinder_max_identity": {
+      "source_hex":"000202512714e3717013d13566d57aef8ae1fee13b996cf4f0adf6e20eb05ff4d5edcf00020017626c6f636b5f66696e6465725f70657263656e74616765001b39392e3939393939393939393939393939393939393939393939390006666163746f72000132",
+      "sha256":"5cbdd9e86548e8bd9c673058067e115dadefc50a5ed72f60a89fafd457c9ec5d"
+    }
+  },
+  "settlement_policy_invalid_decimals": ["2.0", "+2", "02", "1e2", "100"],
+  "contract_binding": {
+    "core_major":1,
+    "core_minor":1,
+    "lane":0,
+    "profile_entries":[
+      {"profile_id":"coredrp.mining","major":1,"minor":1,"has_digest":false},
+      {"profile_id":"coredrp.miningcore","major":1,"minor":1,"has_digest":false}
+    ],
+    "scope_contracts":[
+      {"scope_hex":"62746331","profile_id":"coredrp.mining","major":1,"minor":1,"digest_hex":"d21a908c547bcd177ed82b19ccf16bc6ea75b7631d86b38c3e86480b9e9f3307"},
+      {"scope_hex":"62746331","profile_id":"coredrp.miningcore","major":1,"minor":1,"digest_hex":"35589865f465db5a241e9b70f9da79e5d93f369a6ed2b21eed9c0fc2987f0d0e"}
+    ],
+    "event_types":[1,256,512],
+    "preimage_hex":"436f7265445250312d434f4e54524143540000000100000001000002000e636f72656472702e6d696e696e670000000100000001000012636f72656472702e6d696e696e67636f72650000000100000001000002000462746331000e636f72656472702e6d696e696e670000000100000001d21a908c547bcd177ed82b19ccf16bc6ea75b7631d86b38c3e86480b9e9f33070004627463310012636f72656472702e6d696e696e67636f7265000000010000000135589865f465db5a241e9b70f9da79e5d93f369a6ed2b21eed9c0fc2987f0d0e0003000101000200",
+    "sha256":"c0697abcf501d71b574a8281d5f2e30de9a0418c1e0779e9280de2c17b94159a"
+  },
+  "idempotency_generation_cases":[
+    {"case_kind":"new_next_sequence","active_generation":4,"retired_high_water":3,"last_new_sequence":9,"request_generation":4,"request_sequence":10,"expected":"ADMIT_NEW"},
+    {"case_kind":"retired_generation","active_generation":4,"retired_high_water":3,"request_generation":3,"request_sequence":999,"expected":"CALLER_ADMISSION_GENERATION_RETIRED"},
+    {"case_kind":"retired_producer_reregister","producer_tombstoned":true,"expected":"PRODUCER_UUID_RETIRED"},
+    {"case_kind":"contract_change_active_generation","old_contract":"aa","new_contract":"bb","active_generation_open":true,"expected":"SEAL_BEFORE_CONTRACT_TRANSITION"},
+    {"case_kind":"contract_same_active_generation","old_contract":"aa","new_contract":"aa","active_generation_open":true,"expected":"CONTINUE"}
+  ],
+  "clock_state_cases":[
+    {"case_kind":"good_probe","state":"GOOD","reason":"PROBE_EVIDENCE","probe":true,"bounds":"GOOD","expected":"GOOD"},
+    {"case_kind":"bad_processing_limit","state":"BAD","reason":"SENDER_PROCESSING_LIMIT","probe":true,"bounds":null,"processing_exceeded":true,"expected":"BAD"},
+    {"case_kind":"unknown_processing_limit","state":"UNKNOWN","reason":"SENDER_PROCESSING_LIMIT","probe":true,"bounds":null,"processing_exceeded":true,"expected":"CLOCK_CONTRACT_VIOLATION"},
+    {"case_kind":"unknown_probe_overlap","state":"UNKNOWN","reason":"PROBE_EVIDENCE","probe":true,"bounds":"UNKNOWN","expected":"UNKNOWN"},
+    {"case_kind":"bad_wall_step","state":"BAD","reason":"RECEIVER_WALL_STEP","probe":false,"bounds":null,"expected":"BAD"}
+  ],
+  "staging_sender_cases":[
+    {"case_kind":"membership_start","sender":"a","expected":["a"]},
+    {"case_kind":"membership_end","sender":"a","expected":["a"]},
+    {"case_kind":"mode_required_to_none","members_t_minus_1":["a","b"],"expected":["a","b"]},
+    {"case_kind":"mode_none_to_required","members_t":["b","c"],"expected":["b","c"]}
+  ],
+  "clock_uncertainty_cases":[
+    {"case_kind":"two_senders","effective_skews_ms":[1000,2500],"expected_ms":5000},
+    {"case_kind":"empty_set","effective_skews_ms":[],"expected_ms":0}
+  ],
+  "clock_deactivation_cases":[
+    {"case_kind":"last_membership_end","pre_change_skew_ms":2500,"post_change_skew_ms":null,"expected_transition_skew_ms":2500,"expected_uncertainty_ms":5000},
+    {"case_kind":"last_relay_required_off","pre_change_skew_ms":2000,"post_change_skew_ms":null,"expected_transition_skew_ms":2000,"expected_uncertainty_ms":4000},
+    {"case_kind":"other_scope_stricter_after","pre_change_skew_ms":2500,"post_change_skew_ms":1000,"expected_transition_skew_ms":2500,"expected_uncertainty_ms":5000},
+    {"case_kind":"other_scope_laxer_after","pre_change_skew_ms":1000,"post_change_skew_ms":2500,"expected_transition_skew_ms":2500,"expected_uncertainty_ms":5000}
+  ],
+  "projection_scope_access_cases":[
+    {"case_kind":"aux_authorized_member","authorized":true,"mode":"RELAY_REQUIRED","member":true,"expected":"ACCEPT"},
+    {"case_kind":"aux_unauthorized","authorized":false,"mode":"RELAY_REQUIRED","member":true,"expected":"UNAUTHORIZED_SCOPE"},
+    {"case_kind":"aux_missing_membership","authorized":true,"mode":"RELAY_REQUIRED","member":false,"expected":"TEMPORAL_MEMBERSHIP_REQUIRED"},
+    {"case_kind":"aux_no_relay_required","authorized":true,"mode":"NO_RELAY_REQUIRED","member":false,"expected":"ACCEPT"}
+  ],
+  "settlement_prune_cases":[
+    {"case_kind":"later_final_safe","all_settlements_final":true,"intersects_unsafe_audit":false,"live_dependencies":false,"summary_v1":true,"scheme_allows":true,"expected":true},
+    {"case_kind":"missing_summary","all_settlements_final":true,"intersects_unsafe_audit":false,"live_dependencies":false,"summary_v1":false,"scheme_allows":true,"expected":false},
+    {"case_kind":"intersects_waived_hole","all_settlements_final":true,"intersects_unsafe_audit":true,"live_dependencies":false,"summary_v1":true,"scheme_allows":true,"expected":false},
+    {"case_kind":"other_live_window","all_settlements_final":false,"intersects_unsafe_audit":false,"live_dependencies":true,"summary_v1":true,"scheme_allows":true,"expected":false}
+  ],
+  "quarantine_cases":[
+    {"case_kind":"financial_unresolved","event_type":256,"state":"UNRESOLVED","expected_settlement_safe":false},
+    {"case_kind":"financial_reconciled","event_type":512,"state":"RESOLVED_RECONCILED","expected_settlement_safe":true},
+    {"case_kind":"financial_waived","event_type":512,"state":"RESOLVED_WAIVED","expected_settlement_safe":false}
+  ],
+  "quarantine_transition_cases":[
+    {"case_kind":"reconcile_unresolved","old_state":"UNRESOLVED","identity_match":true,"authority_valid":true,"effect_digest_match":true,"effects_atomic":true,"expected":"RESOLVED_RECONCILED"},
+    {"case_kind":"reconcile_bad_identity","old_state":"UNRESOLVED","identity_match":false,"authority_valid":true,"effect_digest_match":true,"effects_atomic":true,"expected":"ADMIN_ACTION_CONFLICT"},
+    {"case_kind":"reconcile_waived","old_state":"RESOLVED_WAIVED","identity_match":true,"authority_valid":true,"effect_digest_match":true,"effects_atomic":true,"expected":"ADMIN_ACTION_CONFLICT"},
+    {"case_kind":"waive_unresolved","old_state":"UNRESOLVED","identity_match":true,"expected":"RESOLVED_WAIVED"},
+    {"case_kind":"waive_reconciled","old_state":"RESOLVED_RECONCILED","identity_match":true,"expected":"ADMIN_ACTION_CONFLICT"}
+  ],
+  "profile_transition_cases":[
+    {"case_kind":"same_digest","old_mining":"aa","new_mining":"aa","old_mc":"bb","new_mc":"bb","old_state_closed":false,"expected":"ALLOW"},
+    {"case_kind":"changed_digest_open_state","old_mining":"aa","new_mining":"cc","old_mc":"bb","new_mc":"bb","old_state_closed":false,"expected":"ADMIN_ACTION_CONFLICT"},
+    {"case_kind":"changed_digest_closed_state","old_mining":"aa","new_mining":"cc","old_mc":"bb","new_mc":"bb","old_state_closed":true,"expected":"ALLOW"}
+  ],
+  "migration_closure_cases":[
+    {"case_kind":"fully_closed","live_window":false,"pps_liability":false,"candidate_live":false,"unsafe_range":false,"override_live":false,"import_in_progress":false,"producer_open":false,"summary_missing":false,"effect_mutable":false,"expected":true},
+    {"case_kind":"live_window","live_window":true,"pps_liability":false,"candidate_live":false,"unsafe_range":false,"override_live":false,"import_in_progress":false,"producer_open":false,"summary_missing":false,"effect_mutable":false,"expected":false},
+    {"case_kind":"open_producer","live_window":false,"pps_liability":false,"candidate_live":false,"unsafe_range":false,"override_live":false,"import_in_progress":false,"producer_open":true,"summary_missing":false,"effect_mutable":false,"expected":false},
+    {"case_kind":"missing_summary","live_window":false,"pps_liability":false,"candidate_live":false,"unsafe_range":false,"override_live":false,"import_in_progress":false,"producer_open":false,"summary_missing":true,"effect_mutable":false,"expected":false}
+  ],
+  "temporal_reconciliation_cases":[
+    {"case_kind":"correct_end_only","correction_kind":3,"same_scope":true,"same_sender":true,"same_valid_from":true,"new_generation_matches_admin":true,"non_overlapping":true,"expected":"ACCEPT"},
+    {"case_kind":"correct_end_changes_start","correction_kind":3,"same_scope":true,"same_sender":true,"same_valid_from":false,"new_generation_matches_admin":true,"non_overlapping":true,"expected":"ADMIN_ACTION_CONFLICT"},
+    {"case_kind":"new_generation_mismatch","correction_kind":2,"same_scope":true,"same_sender":true,"same_valid_from":true,"new_generation_matches_admin":false,"non_overlapping":true,"expected":"ADMIN_ACTION_CONFLICT"},
+    {"case_kind":"overlap_after_replace","correction_kind":2,"same_scope":true,"same_sender":true,"same_valid_from":true,"new_generation_matches_admin":true,"non_overlapping":false,"expected":"ADMIN_ACTION_CONFLICT"}
+  ]
+}

@@ -1,1 +1,33 @@
-{"format":"CoreDRP Miningcore 1.1 accounting-schema-v2 conformance vectors","parent_aux":{"event_time_unix_ms":1788541206000,"outer_scope":"ltc","primary_scope":"ltc","paired_scope":"doge","accounting_id_hex":"0191b00100007000800000000000e001","primary_miner":"ltc-miner","paired_miner":"doge-miner","shared_worker":"rig","shared_user_agent":"miner/1.0","shared_source_ip":"192.0.2.1","shared_source":"stratum","shared_session_id":"sess-1","shared_achieved_share_difficulty":2.0,"payload_hex":"0a8e010a64086412096c74632d6d696e65721a0372696722096d696e65722f312e3029000000000000f03f31000000000000004039000000000000f03f410000000000408f404a093139322e302e322e3152077374726174756d5a06736573732d3160f0fbf3ea863412100191b00100007000800000000000e001180220e8072a080a06302e30303031480152036c74631290010a650864120a646f67652d6d696e65721a0372696722096d696e65722f312e3029000000000000f03f31000000000000004039000000000000f03f410000000000409f404a093139322e302e322e3152077374726174756d5a06736573732d3160f0fbf3ea863412100191b00100007000800000000000e001180320e8072a080a06302e3030303148015204646f6765","expected":"VALID"},"invalid_cases":[{"case_kind":"different_accounting_id","expected":"SEMANTIC_PAYLOAD_INVALID"},{"case_kind":"same_scope","expected":"SEMANTIC_PAYLOAD_INVALID"},{"case_kind":"primary_scope_not_outer","expected":"SEMANTIC_PAYLOAD_INVALID"},{"case_kind":"paired_same_miner_allowed","expected":"VALID"},{"case_kind":"different_worker","expected":"SEMANTIC_PAYLOAD_INVALID"},{"case_kind":"different_user_agent","expected":"SEMANTIC_PAYLOAD_INVALID"},{"case_kind":"different_source_ip","expected":"SEMANTIC_PAYLOAD_INVALID"},{"case_kind":"different_source","expected":"SEMANTIC_PAYLOAD_INVALID"},{"case_kind":"different_session","expected":"SEMANTIC_PAYLOAD_INVALID"},{"case_kind":"different_created","expected":"SEMANTIC_PAYLOAD_INVALID"},{"case_kind":"different_achieved_share_difficulty","expected":"SEMANTIC_PAYLOAD_INVALID"}]}
+{
+  "format":"CoreDRP Miningcore 1.1 accounting-schema-v3 conformance vectors",
+  "parent_aux":{
+    "event_time_unix_ms":1788541206000,
+    "outer_scope":"ltc",
+    "primary_scope":"ltc",
+    "paired_scope":"doge",
+    "accounting_id_hex":"0191b00100007000800000000000e001",
+    "primary_miner":"ltc-miner",
+    "paired_miner":"doge-miner",
+    "shared_worker":"rig",
+    "shared_user_agent":"miner/1.0",
+    "shared_source_ip":"192.0.2.1",
+    "shared_source":"stratum",
+    "shared_session_id":"sess-1",
+    "shared_achieved_share_difficulty":2.0,
+    "payload_hex":"0a8e010a64086412096c74632d6d696e65721a0372696722096d696e65722f312e3029000000000000f03f31000000000000004039000000000000f03f410000000000408f404a093139322e302e322e3152077374726174756d5a06736573732d3160f0fbf3ea863412100191b00100007000800000000000e001180220e8072a080a06302e30303031480152036c74631290010a650864120a646f67652d6d696e65721a0372696722096d696e65722f312e3029000000000000f03f31000000000000004039000000000000f03f410000000000409f404a093139322e302e322e3152077374726174756d5a06736573732d3160f0fbf3ea863412100191b00100007000800000000000e001180320e8072a080a06302e3030303148015204646f6765",
+    "expected":"VALID"
+  },
+  "invalid_cases":[
+    {"case_kind":"different_accounting_id","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"same_scope","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"primary_scope_not_outer","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"paired_same_miner_allowed","expected":"VALID"},
+    {"case_kind":"different_worker","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"different_user_agent","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"different_source_ip","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"different_source","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"different_session","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"different_created","expected":"SEMANTIC_PAYLOAD_INVALID"},
+    {"case_kind":"different_achieved_share_difficulty","expected":"SEMANTIC_PAYLOAD_INVALID"}
+  ]
+}
