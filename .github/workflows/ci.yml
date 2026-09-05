@@ -14,6 +14,7 @@ jobs:
       - run: python3 tools/check_wire_compatibility.py
       - run: python3 tools/verify_test_vectors.py
       - run: python3 tools/verify_draft05_vectors.py
+      - run: python3 tools/verify_draft06_vectors.py
       - run: python3 tools/verify_state_vectors.py
       - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler && python3 -m pip install protobuf
       - run: mkdir -p .build && protoc -I . --descriptor_set_out=.build/coredrp.pb --include_imports --include_source_info protocol/coredrp-v1.proto profiles/mining/coredrp-mining-v1.proto profiles/miningcore/coredrp-miningcore-v1.proto
@@ -31,8 +32,8 @@ jobs:
       - name: Prove realistic TLA+ mutations are detected
         run: |
           python3 tools/mutate_tla.py
-          declare -A expected=( [prune]=PruneSafe [ack]=AckSafe [drain]=NormalTransitionDrained [payout]=PayoutEvidenceSafe )
-          for m in prune ack drain payout; do
+          declare -A expected=( [prune]=PruneSafe [ack]=AckSafe [drain]=NormalTransitionDrained [payout]=PayoutEvidenceSafe [exceptional_gap]=ExceptionalTransitionCovered )
+          for m in prune ack drain payout exceptional_gap; do
             set +e
             java -XX:+UseParallelGC -jar .build/tla2tools.jar -config model/CoreDRP.cfg .build/mutations/$m/CoreDRP.tla > .build/tla-$m.log 2>&1
             rc=$?

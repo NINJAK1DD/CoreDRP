@@ -36,22 +36,18 @@ GapFreezesCurrentEpoch == gapRecorded /\ gapEpoch=activeEpoch
 
 Admit ==
   /\ writerCount=1 /\ ~blocked /\ faultPending=0 /\ ~GapFreezesCurrentEpoch /\ walTail<MaxSeq
-  /\ walTail'=walTail+1
-  /\ lastEventTime'=lastEventTime+1
+  /\ walTail'=walTail+1 /\ lastEventTime'=lastEventTime+1
   /\ lastEventTime'>checkpointFloor /\ lastEventTime'>=temporalFloor
   /\ UNCHANGED <<anchorTail,receiverDurable,senderAck,pruned,writerCount,activeEpoch,retiredEpochs,checkpointFloor,checkpointSeq,committedCheckpointFloor,temporalFloor,membershipProof,clockProof,gapRecorded,gapTail,gapEpoch,gapWildcard,transitionMode,oldTailAtTransition,oldDrainedAtTransition,payoutSafeThrough,safePruneThrough,payoutEvidenceWitness,receiverObserved,faultPending,blocked>>
 
 Checkpoint ==
   /\ writerCount=1 /\ ~blocked /\ faultPending=0 /\ ~GapFreezesCurrentEpoch /\ walTail<MaxSeq
-  /\ walTail'=walTail+1
-  /\ lastEventTime'=lastEventTime+1
-  /\ checkpointFloor'=lastEventTime'
-  /\ checkpointSeq'=walTail'
+  /\ walTail'=walTail+1 /\ lastEventTime'=lastEventTime+1
+  /\ checkpointFloor'=lastEventTime' /\ checkpointSeq'=walTail'
   /\ UNCHANGED <<anchorTail,receiverDurable,senderAck,pruned,writerCount,activeEpoch,retiredEpochs,committedCheckpointFloor,temporalFloor,membershipProof,clockProof,gapRecorded,gapTail,gapEpoch,gapWildcard,transitionMode,oldTailAtTransition,oldDrainedAtTransition,payoutSafeThrough,safePruneThrough,payoutEvidenceWitness,receiverObserved,faultPending,blocked>>
 
 PersistAnchor ==
-  /\ anchorTail<walTail
-  /\ anchorTail'=walTail
+  /\ anchorTail<walTail /\ anchorTail'=walTail
   /\ UNCHANGED <<walTail,receiverDurable,senderAck,pruned,writerCount,activeEpoch,retiredEpochs,checkpointFloor,checkpointSeq,committedCheckpointFloor,temporalFloor,lastEventTime,membershipProof,clockProof,gapRecorded,gapTail,gapEpoch,gapWildcard,transitionMode,oldTailAtTransition,oldDrainedAtTransition,payoutSafeThrough,safePruneThrough,payoutEvidenceWitness,receiverObserved,faultPending,blocked>>
 
 Commit ==
@@ -66,32 +62,21 @@ RememberAck ==
   /\ UNCHANGED <<walTail,anchorTail,receiverDurable,pruned,writerCount,activeEpoch,retiredEpochs,checkpointFloor,checkpointSeq,committedCheckpointFloor,temporalFloor,lastEventTime,membershipProof,clockProof,gapRecorded,gapTail,gapEpoch,gapWildcard,transitionMode,oldTailAtTransition,oldDrainedAtTransition,payoutSafeThrough,safePruneThrough,payoutEvidenceWitness,receiverObserved,faultPending,blocked>>
 
 Prune ==
-  /\ pruned<senderAck
-  /\ pruned'=senderAck
+  /\ pruned<senderAck /\ pruned'=senderAck
   /\ UNCHANGED <<walTail,anchorTail,receiverDurable,senderAck,writerCount,activeEpoch,retiredEpochs,checkpointFloor,checkpointSeq,committedCheckpointFloor,temporalFloor,lastEventTime,membershipProof,clockProof,gapRecorded,gapTail,gapEpoch,gapWildcard,transitionMode,oldTailAtTransition,oldDrainedAtTransition,payoutSafeThrough,safePruneThrough,payoutEvidenceWitness,receiverObserved,faultPending,blocked>>
 
 EstablishMembershipProof ==
-  /\ ~membershipProof
-  /\ membershipProof'=TRUE
+  /\ ~membershipProof /\ membershipProof'=TRUE
   /\ UNCHANGED <<walTail,anchorTail,receiverDurable,senderAck,pruned,writerCount,activeEpoch,retiredEpochs,checkpointFloor,checkpointSeq,committedCheckpointFloor,temporalFloor,lastEventTime,clockProof,gapRecorded,gapTail,gapEpoch,gapWildcard,transitionMode,oldTailAtTransition,oldDrainedAtTransition,payoutSafeThrough,safePruneThrough,payoutEvidenceWitness,receiverObserved,faultPending,blocked>>
 
 EstablishClockProof ==
-  /\ ~clockProof
-  /\ clockProof'=TRUE
+  /\ ~clockProof /\ clockProof'=TRUE
   /\ UNCHANGED <<walTail,anchorTail,receiverDurable,senderAck,pruned,writerCount,activeEpoch,retiredEpochs,checkpointFloor,checkpointSeq,committedCheckpointFloor,temporalFloor,lastEventTime,membershipProof,gapRecorded,gapTail,gapEpoch,gapWildcard,transitionMode,oldTailAtTransition,oldDrainedAtTransition,payoutSafeThrough,safePruneThrough,payoutEvidenceWitness,receiverObserved,faultPending,blocked>>
-
-RecordGap ==
-  /\ writerCount=1 /\ ~blocked /\ faultPending=0 /\ ~gapRecorded /\ senderAck<walTail
-  /\ gapRecorded'=TRUE /\ gapTail'=walTail /\ gapEpoch'=activeEpoch
-  /\ gapWildcard' \in BOOLEAN
-  /\ UNCHANGED <<walTail,anchorTail,receiverDurable,senderAck,pruned,writerCount,activeEpoch,retiredEpochs,checkpointFloor,checkpointSeq,committedCheckpointFloor,temporalFloor,lastEventTime,membershipProof,clockProof,transitionMode,oldTailAtTransition,oldDrainedAtTransition,payoutSafeThrough,safePruneThrough,payoutEvidenceWitness,receiverObserved,faultPending,blocked>>
 
 NormalEpochTransition ==
   /\ writerCount=1 /\ ~blocked /\ faultPending=0 /\ ~gapRecorded /\ activeEpoch=1
   /\ senderAck=receiverDurable /\ receiverDurable=walTail
-  /\ transitionMode'=1
-  /\ oldTailAtTransition'=walTail
-  /\ oldDrainedAtTransition'=(senderAck=receiverDurable /\ receiverDurable=walTail)
+  /\ transitionMode'=1 /\ oldTailAtTransition'=walTail /\ oldDrainedAtTransition'=TRUE
   /\ activeEpoch'=2 /\ retiredEpochs'=retiredEpochs \cup {1}
   /\ temporalFloor'=Max3(temporalFloor,lastEventTime,checkpointFloor)
   /\ walTail'=0 /\ anchorTail'=0 /\ receiverDurable'=0 /\ senderAck'=0 /\ pruned'=0 /\ receiverObserved'=0
@@ -102,23 +87,22 @@ NormalEpochTransition ==
 ExceptionalEpochTransition ==
   /\ writerCount=1 /\ ~blocked /\ faultPending=0 /\ activeEpoch=1
   /\ senderAck=receiverDurable /\ senderAck<walTail
-  /\ gapRecorded /\ gapEpoch=activeEpoch /\ gapTail=walTail
   /\ transitionMode'=2 /\ oldTailAtTransition'=walTail /\ oldDrainedAtTransition'=FALSE
+  /\ gapRecorded'=TRUE /\ gapTail'=walTail /\ gapEpoch'=activeEpoch /\ gapWildcard' \in BOOLEAN
   /\ activeEpoch'=2 /\ retiredEpochs'=retiredEpochs \cup {1}
   /\ temporalFloor'=Max3(temporalFloor,lastEventTime,checkpointFloor)
   /\ walTail'=0 /\ anchorTail'=0 /\ receiverDurable'=0 /\ senderAck'=0 /\ pruned'=0 /\ receiverObserved'=0
   /\ checkpointSeq'=0 /\ committedCheckpointFloor'=0
-  /\ UNCHANGED <<writerCount,checkpointFloor,lastEventTime,membershipProof,clockProof,gapRecorded,gapTail,gapEpoch,gapWildcard,payoutSafeThrough,safePruneThrough,payoutEvidenceWitness,faultPending,blocked>>
+  /\ UNCHANGED <<writerCount,checkpointFloor,lastEventTime,membershipProof,clockProof,payoutSafeThrough,safePruneThrough,payoutEvidenceWitness,faultPending,blocked>>
 
 AdvancePayoutSafe ==
-  /\ payoutSafeThrough<committedCheckpointFloor /\ checkpointSeq>0 /\ receiverDurable>=checkpointSeq /\ senderAck>=checkpointSeq /\ membershipProof /\ clockProof /\ ~gapRecorded
+  /\ payoutSafeThrough<committedCheckpointFloor /\ checkpointSeq>0 /\ receiverDurable>=checkpointSeq /\ membershipProof /\ clockProof /\ ~gapRecorded
   /\ payoutSafeThrough'=payoutSafeThrough+1
-  /\ payoutEvidenceWitness'=(checkpointSeq>0 /\ receiverDurable>=checkpointSeq /\ senderAck>=checkpointSeq /\ membershipProof /\ clockProof /\ ~gapRecorded)
+  /\ payoutEvidenceWitness'=(checkpointSeq>0 /\ receiverDurable>=checkpointSeq /\ membershipProof /\ clockProof /\ ~gapRecorded)
   /\ UNCHANGED <<walTail,anchorTail,receiverDurable,senderAck,pruned,writerCount,activeEpoch,retiredEpochs,checkpointFloor,checkpointSeq,committedCheckpointFloor,temporalFloor,lastEventTime,membershipProof,clockProof,gapRecorded,gapTail,gapEpoch,gapWildcard,transitionMode,oldTailAtTransition,oldDrainedAtTransition,safePruneThrough,receiverObserved,faultPending,blocked>>
 
 AdvanceSafePrune ==
-  /\ safePruneThrough<payoutSafeThrough
-  /\ safePruneThrough'=safePruneThrough+1
+  /\ safePruneThrough<payoutSafeThrough /\ safePruneThrough'=safePruneThrough+1
   /\ UNCHANGED <<walTail,anchorTail,receiverDurable,senderAck,pruned,writerCount,activeEpoch,retiredEpochs,checkpointFloor,checkpointSeq,committedCheckpointFloor,temporalFloor,lastEventTime,membershipProof,clockProof,gapRecorded,gapTail,gapEpoch,gapWildcard,transitionMode,oldTailAtTransition,oldDrainedAtTransition,payoutSafeThrough,payoutEvidenceWitness,receiverObserved,faultPending,blocked>>
 
 Crash ==
@@ -138,7 +122,7 @@ DetectFault ==
   /\ faultPending#0 /\ blocked'=TRUE /\ faultPending'=0
   /\ UNCHANGED <<walTail,anchorTail,receiverDurable,senderAck,pruned,writerCount,activeEpoch,retiredEpochs,checkpointFloor,checkpointSeq,committedCheckpointFloor,temporalFloor,lastEventTime,membershipProof,clockProof,gapRecorded,gapTail,gapEpoch,gapWildcard,transitionMode,oldTailAtTransition,oldDrainedAtTransition,payoutSafeThrough,safePruneThrough,payoutEvidenceWitness,receiverObserved>>
 
-Next == Admit \/ Checkpoint \/ PersistAnchor \/ Commit \/ RememberAck \/ Prune \/ EstablishMembershipProof \/ EstablishClockProof \/ RecordGap \/ NormalEpochTransition \/ ExceptionalEpochTransition \/ AdvancePayoutSafe \/ AdvanceSafePrune \/ Crash \/ AcquireWriter \/ ReceiverRollbackFault \/ DetectFault
+Next == Admit \/ Checkpoint \/ PersistAnchor \/ Commit \/ RememberAck \/ Prune \/ EstablishMembershipProof \/ EstablishClockProof \/ NormalEpochTransition \/ ExceptionalEpochTransition \/ AdvancePayoutSafe \/ AdvanceSafePrune \/ Crash \/ AcquireWriter \/ ReceiverRollbackFault \/ DetectFault
 
 TypeOK ==
   /\ walTail \in 0..MaxSeq /\ anchorTail \in 0..MaxSeq /\ receiverDurable \in 0..MaxSeq /\ senderAck \in 0..MaxSeq /\ pruned \in 0..MaxSeq

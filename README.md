@@ -5,38 +5,40 @@
 **Originally designed and authored by Rob Cooke in 2026.**  
 Originally developed for the Miningcore project.
 
-> **Status: Draft / pre-implementation. Not production-ready.**
+> **Status: Draft 0.6 implementation-freeze candidate / pre-implementation. Not production-ready.**
 
 CoreDRP is a durable, authenticated, replayable event-relay protocol with a domain-independent Core, reusable Mining Profile, and Miningcore Integration Profile.
 
-The current working specification is **Draft 0.5**. Start with [`docs/CoreDRP-1-SPEC-0.5.md`](docs/CoreDRP-1-SPEC-0.5.md). Draft 0.4 remains in the repository as historical review context only.
+The canonical working specification is [`docs/CoreDRP-1-SPEC-0.6.md`](docs/CoreDRP-1-SPEC-0.6.md). Draft 0.5 and earlier specifications remain historical reference only.
 
-## Draft 0.5 safety focus
+## Draft 0.6 focus
 
-- durable sender admission before application success, with permanent lane-namespaced financial idempotency;
-- at-least-once replay and cumulative ACK only after durable receiver commit;
-- deterministic reconnect plus explicit receiver-ID/database-incarnation replacement reconciliation;
-- fully drained normal epoch rollover and scope-complete/wildcard exceptional-abandonment gaps with retired-epoch import;
-- temporal membership enforced on RELAY_REQUIRED payout events, not merely used when calculating completeness;
-- lane-global checkpoints that require current authorization for every newly asserted covered scope;
-- conservative clock interval classification communicated explicitly receiver→sender through Core 1.1 `ClockStateUpdate`;
-- flow control charging scope + payload + per-event overhead, so empty payloads and maximum scopes cannot bypass byte windows;
-- Bitcoin direct-candidate validation with duplicate-txid rejection, txid Merkle checks, mandatory witness commitments and declared consensus/merge-mining outputs;
-- candidate-state referential integrity and transactionally checked monotonic transitions.
+Draft 0.6 closes the final cross-component safety and interoperability findings from the latest adversarial review of merged PR #6. In particular it:
+
+- makes receiver-side `PayoutSafe` depend only on receiver-observable durable checkpoint evidence, while retaining sender ACK persistence for replay/WAL pruning;
+- restores the complete generic epoch contract-binding byte grammar and publishes a Core 1.1 / Mining 1.1 / Miningcore 1.1 preimage+digest;
+- moves Mining and Miningcore semantic rules into incorporated normative registries instead of leaving them implicit in test code;
+- freezes malformed/stale `ClockStateUpdate`, stream-local generation lifecycle, BAD latching and recovery;
+- explicitly states that Draft 0.6 endpoints implement Core 1.1 only and MUST NOT advertise Core 1.0 compatibility;
+- replaces unbounded permanent per-share idempotency tombstones with a bounded active producer generation plus permanent retired-generation high-water safety;
+- rejects ordinary retroactive membership/mode changes behind the payout frontier;
+- distinguishes reconciled gaps from waived uncertainty so waiver cannot manufacture `PayoutSafe`;
+- binds Bitcoin network validation policy into the Miningcore semantic contract;
+- strengthens ADMIN atomic idempotency semantics, metric coverage, raw SHA-256 wire fingerprints and TLA+ mutation controls.
 
 ## Layering
 
 ```text
-CoreDRP Core
+CoreDRP Core 1.1
     ▲
-Mining Profile
+Mining Profile 1.1
     ▲
-Miningcore Integration
+Miningcore Profile 1.1
 ```
 
-CI provides **conformance and regression checks, not a proof of the whole protocol**. It validates document structure, reviewed protobuf fingerprints, registries, cryptographic constructions, state decisions, executable profile/accounting/Bitcoin positive and negative cases, independent-language vector reconstruction, and a bounded TLA+ fault model with mutation controls.
+CI checks canonical document structure, layer boundaries, error/event/metric registries, exact protobuf fingerprints, historical crypto vectors, Draft 0.5 compatibility vectors, Draft 0.6 freeze vectors, state-machine decisions, profile/accounting/Bitcoin evidence, Buf lint, independent .NET reconstruction, the positive TLA+ model and realistic unsafe mutations.
 
-Review dispositions are retained under [`docs/reviews/`](docs/reviews/).
+These checks are conformance/regression tests, not a proof of the complete protocol.
 
 ## Licensing and attribution
 
@@ -46,8 +48,6 @@ Review dispositions are retained under [`docs/reviews/`](docs/reviews/).
 Copyright © 2026 **Rob Cooke**.
 
 Canonical attribution: **“CoreDRP — Core Durable Relay Protocol, originally designed and authored by Rob Cooke in 2026.”**
-
-See `NOTICE`, `AUTHORS.md`, `CITATION.cff`, and `LICENSE.md`.
 
 Canonical project: https://coredrp.org  
 Source: https://github.com/NINJAK1DD/CoreDRP
