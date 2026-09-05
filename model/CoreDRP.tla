@@ -16,6 +16,8 @@ vars == <<walTail,anchorTail,receiverDurable,senderAck,pruned,
           payoutSafeThrough,safePruneThrough,
           receiverObserved,faultPending,blocked>>
 
+Max3(a,b,c) == IF a>=b THEN IF a>=c THEN a ELSE c ELSE IF b>=c THEN b ELSE c
+
 Init ==
   /\ walTail=0 /\ anchorTail=0 /\ receiverDurable=0 /\ senderAck=0 /\ pruned=0
   /\ writerCount=1 /\ activeEpoch=1 /\ retiredEpochs={}
@@ -74,7 +76,7 @@ NormalEpochTransition ==
   /\ oldTailAtTransition'=walTail
   /\ oldDrainedAtTransition'=(senderAck=receiverDurable /\ receiverDurable=walTail)
   /\ activeEpoch'=2 /\ retiredEpochs'=retiredEpochs \cup {1}
-  /\ temporalFloor'=Max({temporalFloor,lastEventTime,checkpointFloor})
+  /\ temporalFloor'=Max3(temporalFloor,lastEventTime,checkpointFloor)
   /\ walTail'=0 /\ anchorTail'=0 /\ receiverDurable'=0 /\ senderAck'=0 /\ pruned'=0 /\ receiverObserved'=0
   /\ gapRecorded'=FALSE /\ gapTail'=0 /\ gapEpoch'=0 /\ gapWildcard'=FALSE
   /\ UNCHANGED <<writerCount,checkpointFloor,lastEventTime,payoutSafeThrough,safePruneThrough,faultPending,blocked>>
@@ -85,7 +87,7 @@ ExceptionalEpochTransition ==
   /\ gapRecorded /\ gapEpoch=activeEpoch /\ gapTail=walTail
   /\ transitionMode'=2 /\ oldTailAtTransition'=walTail /\ oldDrainedAtTransition'=FALSE
   /\ activeEpoch'=2 /\ retiredEpochs'=retiredEpochs \cup {1}
-  /\ temporalFloor'=Max({temporalFloor,lastEventTime,checkpointFloor})
+  /\ temporalFloor'=Max3(temporalFloor,lastEventTime,checkpointFloor)
   /\ walTail'=0 /\ anchorTail'=0 /\ receiverDurable'=0 /\ senderAck'=0 /\ pruned'=0 /\ receiverObserved'=0
   /\ UNCHANGED <<writerCount,checkpointFloor,lastEventTime,gapRecorded,gapTail,gapEpoch,gapWildcard,payoutSafeThrough,safePruneThrough,faultPending,blocked>>
 
