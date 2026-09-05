@@ -134,7 +134,7 @@ SingleWriter == writerCount<=1
 RetiredNeverCurrent == activeEpoch \notin retiredEpochs
 NormalTransitionDrained == transitionMode=1 => oldDrainedAtTransition
 ExceptionalTransitionCovered == transitionMode=2 => gapRecorded /\ gapEpoch=1 /\ gapTail=oldTailAtTransition /\ oldTailAtTransition>0
-TemporalFloorSafe == temporalFloor>=checkpointFloor
+TemporalFloorSafe == lastEventTime>=checkpointFloor /\ lastEventTime>=temporalFloor
 SafePruneBound == safePruneThrough<=payoutSafeThrough
 RollbackObserved == receiverObserved<senderAck => (faultPending#0 \/ blocked)
 
