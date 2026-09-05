@@ -14,7 +14,8 @@ It incorporates these subregistries at the same normative authority tier:
 - `coredrp-v1-bitcoin-network-policies.md`;
 - `coredrp-v1-producer-lifecycle.md`;
 - `coredrp-v1-profile-transitions.md`;
-- `coredrp-v1-quarantine-safety.md`.
+- `coredrp-v1-quarantine-safety.md`;
+- `coredrp-v1-validator-authorities.md`.
 
 Reference vectors/tools are lower authority.
 
@@ -81,7 +82,7 @@ Cross-sender completeness uses checked `B+2S`. Every payout-effect scope, includ
 
 Completeness mode remains temporal audited state rather than immutable scope-contract state. Membership/mode lifecycle, deterministic staging sender set, safety origin and correction semantics are in `coredrp-v1-temporal-policy.md`.
 
-Payout-significant quarantine state transitions and corrected-effect evidence are in `coredrp-v1-quarantine-safety.md` and the ADMIN action registry.
+Payout-significant quarantine state transitions and corrected-effect evidence are in `coredrp-v1-quarantine-safety.md` and the ADMIN action registry. `QUARANTINE_RECONCILIATION` field 11 MUST name an authority digest allocated by `coredrp-v1-validator-authorities.md`; receiver-local authority digests are forbidden.
 
 ## 6. Sorting/text rules
 
