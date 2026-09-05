@@ -6,8 +6,8 @@ mutations={
  'ack':("/\\ senderAck'=receiverDurable","/\\ senderAck'=walTail"),
  'drain':("  /\\ transitionMode'=1 /\\ oldTailAtTransition'=walTail /\\ oldDrainedAtTransition'=TRUE\n","  /\\ transitionMode'=1 /\\ oldTailAtTransition'=walTail /\\ oldDrainedAtTransition'=FALSE\n"),
  'payout':(
-  "  /\\ payoutSafeThrough<committedCheckpointFloor /\\ checkpointSeq>0 /\\ receiverDurable>=checkpointSeq\n  /\\ CurrentProofs /\\ ~GapBlocksScalar /\\ ~policyReconciliationPending\n",
-  "  /\\ payoutSafeThrough<committedCheckpointFloor\n"),
+  "  /\\ payoutEvidenceWitness'=(checkpointSeq>0 /\\ receiverDurable>=checkpointSeq /\\ CurrentProofs /\\ ~GapBlocksScalar /\\ ~policyReconciliationPending)\n",
+  "  /\\ payoutEvidenceWitness'=FALSE\n"),
  'exceptional_gap':(
   "  /\\ gapRecorded'=TRUE /\\ gapTail'=walTail /\\ gapEpoch'=activeEpoch /\\ gapWildcard' \\in BOOLEAN /\\ gapStatus'=1\n",
   "  /\\ gapRecorded'=FALSE /\\ gapTail'=0 /\\ gapEpoch'=0 /\\ gapWildcard'=FALSE /\\ gapStatus'=0\n"),
