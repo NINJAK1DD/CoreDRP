@@ -15,7 +15,7 @@ Draft 0.6 supersedes Draft 0.5 for normative interpretation. Earlier drafts rema
 
 Normative authority, highest first: this specification; incorporated numbered registries; conformance vectors; protobuf definitions; reference tooling. Reference code MUST NOT override the specification or an incorporated registry.
 
-Incorporated registries are: `coredrp-mining-v1-semantics.md`, `coredrp-miningcore-v1-semantics.md`, `coredrp-v1-draft06-contracts.md`, `coredrp-v1-bitcoin-network-policies.md`, `coredrp-v1-settlement-scheme-policies.md`, `coredrp-v1-share-difficulty-adjustment-policies.md`, `coredrp-v1-settlement-safety.md`, `coredrp-v1-temporal-policy.md`, `coredrp-v1-quarantine-safety.md`, `coredrp-v1-profile-transitions.md`, `coredrp-v1-admin-actions.md`, `coredrp-v1-errors.md`, `coredrp-v1-error-emission.md`, `coredrp-v1-metrics.md`, and the event/wire registries already in this repository.
+Incorporated registries are: `coredrp-mining-v1-semantics.md`, `coredrp-miningcore-v1-semantics.md`, `coredrp-v1-draft06-contracts.md`, `coredrp-v1-bitcoin-network-policies.md`, `coredrp-v1-settlement-scheme-policies.md`, `coredrp-v1-share-difficulty-adjustment-policies.md`, `coredrp-v1-settlement-safety.md`, `coredrp-v1-temporal-policy.md`, `coredrp-v1-quarantine-safety.md`, `coredrp-v1-validator-authorities.md`, `coredrp-v1-profile-transitions.md`, `coredrp-v1-admin-actions.md`, `coredrp-v1-errors.md`, `coredrp-v1-error-emission.md`, `coredrp-v1-metrics.md`, and the event/wire registries already in this repository.
 
 ## 2. Layering
 

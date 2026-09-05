@@ -1,5 +1,14 @@
 # Changelog
 
+## Financial hardening — 2026-09-05
+
+- Freeze PPLNS/PPLNSBF exact score/cutoff and full-tuple pagination; bind PPS retained percentage, eligibility and exact liability arithmetic.
+- Define reconstructible per-accounting EffectIdentityV1 records and same-miner contribution aggregation before destructive pruning.
+- Reject unsafe bootstrap, pending-policy migration and missing sender payout-effect admission evidence; require exact PoolId identity.
+- Clarify critical candidate waiver-only recovery and explicitly incorporate validator authority.
+- Advance completeness policy to 3, settlement policy to 4 and settlement-scheme source to 3; regenerate affected digests. Core wire is unchanged.
+- Add Python, parsed-protobuf and independent C# financial conformance coverage.
+
 ## Draft 0.5 — completeness, clock, recovery and evidence hardening
 
 - added Core 1.1 receiver→sender `ClockStateUpdate` with replay-safe generations and local evidence expiry;

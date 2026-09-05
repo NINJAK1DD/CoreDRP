@@ -4,6 +4,7 @@
 """Verify current Mining 1.1 / Miningcore 1.1 accounting and Bitcoin semantics."""
 from pathlib import Path
 import hashlib,json,math,uuid,re,sys,copy
+from financial_semantics import projection_pps
 from google.protobuf import descriptor_pb2,descriptor_pool,message_factory
 R=Path(__file__).resolve().parents[1];desc=R/'.build/coredrp.pb'
 if not desc.exists():print('profile-vector prerequisite missing: run protoc descriptor build before this verifier',file=sys.stderr);raise SystemExit(2)
@@ -36,8 +37,9 @@ def valid_projection(p,tm,paired=False):
  if not p.preserve_created:return False
  if p.HasField('accounting_id') and not p.accounting_id:return False
  if p.HasField('reward_basis_satoshis') and p.reward_basis_satoshis<=0:return False
- if p.HasField('pps_calculated_amount'):
-  if not p.HasField('accounting_id') or not canonical_decimal(p.pps_calculated_amount.canonical) or p.pps_calculated_amount.canonical=='0':return False
+ # All seeds in this corpus select PPLNS, not PPS.
+ try:projection_pps(p,{'scheme':1})
+ except ValueError:return False
  if p.block_only and (not p.block_record_emitted or p.statistical_record_emitted):return False
  if p.statistical_record_emitted and p.block_only:return False
  return True

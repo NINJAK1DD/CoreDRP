@@ -12,7 +12,7 @@
       "origin_unix_ms": 100000,
       "required_staging_senders": [],
       "expected_frontier": 99999,
-      "expected": "ACCEPT_BOOTSTRAP"
+      "expected": "ADMIN_ACTION_CONFLICT"
     },
     {
       "case_kind": "no_policy_initial_mode_zero_origin",
@@ -67,6 +67,19 @@
       "effective_unix_ms": 101999,
       "clock_uncertainty_ms": 2000,
       "expected": "ADMIN_ACTION_CONFLICT"
+    },
+    {
+      "case_kind": "clean_no_relay_bootstrap",
+      "prior_policy": false,
+      "generation": 1,
+      "action": "COMPLETENESS_MODE_CHANGE",
+      "old_mode": "NO_POLICY",
+      "new_mode": "NO_RELAY_REQUIRED",
+      "effective_unix_ms": 100000,
+      "origin_unix_ms": 100000,
+      "required_staging_senders": [],
+      "expected_frontier": 99999,
+      "expected": "ACCEPT_BOOTSTRAP"
     }
   ],
   "clock_update_cases": [
@@ -400,11 +413,39 @@
     {
       "case_kind": "different_scopes_strictest_per_parameter",
       "scopes": [
-        {"skew": 2000, "step": 500, "probe": 5000, "processing": 250, "expiry": 15000, "grace": 120000},
-        {"skew": 1000, "step": 1000, "probe": 3000, "processing": 300, "expiry": 12000, "grace": 90000},
-        {"skew": 1500, "step": 400, "probe": 4000, "processing": 200, "expiry": 18000, "grace": 60000}
+        {
+          "skew": 2000,
+          "step": 500,
+          "probe": 5000,
+          "processing": 250,
+          "expiry": 15000,
+          "grace": 120000
+        },
+        {
+          "skew": 1000,
+          "step": 1000,
+          "probe": 3000,
+          "processing": 300,
+          "expiry": 12000,
+          "grace": 90000
+        },
+        {
+          "skew": 1500,
+          "step": 400,
+          "probe": 4000,
+          "processing": 200,
+          "expiry": 18000,
+          "grace": 60000
+        }
       ],
-      "expected": {"skew": 1000, "step": 400, "probe": 3000, "processing": 200, "expiry": 12000, "grace": 60000}
+      "expected": {
+        "skew": 1000,
+        "step": 400,
+        "probe": 3000,
+        "processing": 200,
+        "expiry": 12000,
+        "grace": 60000
+      }
     }
   ]
 }

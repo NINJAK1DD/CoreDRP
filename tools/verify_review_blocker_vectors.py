@@ -2,6 +2,7 @@
 from pathlib import Path
 from fractions import Fraction
 import hashlib,json,struct
+from financial_semantics import effect_bytes, participant_bytes
 R=Path(__file__).resolve().parents[1]
 D=json.loads((R/'docs/coredrp-v1-review-blocker-vectors.json').read_text())
 H=lambda b:hashlib.sha256(b).digest()
@@ -30,7 +31,11 @@ assert asrc.hex()==a['source_hex']; assert H(asrc).hex()==a['sha256']
 
 # SettlementEvidenceSummaryV1 exact byte reconstruction.
 s=D['settlement_summary']
-participant=bytes.fromhex(s['participant_record_hex'])
+source=effect_bytes(s,s['effect_source'])
+assert source.hex()==s['effect_identity_preimage_hex']
+assert H(source).hex()==s['effect_identity_digest32']
+participant=participant_bytes(s,s['effect_source'])
+assert participant.hex()==s['participant_record_hex']
 pdsrc=u16(1)+u32(1)+u32(len(participant))+participant
 assert H(pdsrc).hex()==s['participant_effects_digest32']
 sender=bytes.fromhex(s['required_sender_uuid_hex']); assert len(sender)==16

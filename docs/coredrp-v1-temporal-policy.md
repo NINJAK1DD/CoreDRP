@@ -20,7 +20,7 @@ The first policy generation is a special deterministic bootstrap transition:
 
 - `policy_generation` MUST equal `1`;
 - there MUST be no prior membership interval and no prior completeness-mode interval for the scope;
-- the action MUST establish the initial completeness mode using `COMPLETENESS_MODE_CHANGE` from `NO_POLICY` to exactly `RELAY_REQUIRED` or `NO_RELAY_REQUIRED`;
+- the action MUST establish the initial completeness mode using `COMPLETENESS_MODE_CHANGE` from `NO_POLICY` to exactly `NO_RELAY_REQUIRED`; direct bootstrap into `RELAY_REQUIRED` is `ADMIN_ACTION_CONFLICT`;
 - `effective_unix_ms` MUST equal the new immutable `scope_safety_origin_unix_ms` exactly;
 - the origin MUST be within the Core production event-time range;
 - `RequiredStagingSender` for this `NO_POLICY -> initial mode` transition is the empty set because no membership interval is permitted before the origin;
@@ -28,7 +28,7 @@ The first policy generation is a special deterministic bootstrap transition:
 
 On successful atomic bootstrap commit, the receiver durably initializes `PayoutSafeThrough(scope) = scope_safety_origin_unix_ms - 1` as the empty-proven-interval predecessor marker defined by the settlement registry.
 
-No other first-generation action is valid.
+No other first-generation action is valid. To begin relay-required operation, bootstrap explicitly into `NO_RELAY_REQUIRED`, stage initial `MEMBERSHIP_START` generations, then stage `NO_RELAY_REQUIRED -> RELAY_REQUIRED` at a later clean boundary using Sections 2–5. The membership set at that boundary MUST be nonempty; a transition to `RELAY_REQUIRED` with no members is `ADMIN_ACTION_CONFLICT`. Membership may begin while mode is `NO_RELAY_REQUIRED`. No relay-dependent settlement may be attributed to the initial no-relay interval merely to bypass completeness. A deployment requiring relay from its first operational millisecond MUST complete this administrative setup before accepting that workload.
 
 Each durable policy record stores at least scope, generation, effective time, action/correction kind, affected sender when applicable, prior/new evidence, ADMIN identity/digest, receiver state version, required/observed staging acknowledgements, activation result and audit reason.
 

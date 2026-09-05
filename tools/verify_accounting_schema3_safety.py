@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import json,math,re,sys,uuid
+from financial_semantics import projection_pps
 from google.protobuf import descriptor_pb2,descriptor_pool,message_factory
 R=Path(__file__).resolve().parents[1];desc=R/'.build/coredrp.pb'
 if not desc.exists():
@@ -23,7 +24,8 @@ def uuid16_ok(b):
  try:uuid.UUID(bytes=bytes(b));return True
  except Exception:return False
 
-def strict_projection(p,tm):
+def strict_projection(p,tm,policy=None):
+ if policy is None: policy={'scheme':1}  # Explicit non-PPS seed context
  if not SCOPE_RE.fullmatch(bytes(p.scope)) or not p.HasField('share') or not p.preserve_created:return False
  s=p.share
  vals=[s.difficulty,s.achieved_share_difficulty,s.actual_difficulty,s.network_difficulty]
@@ -32,6 +34,8 @@ def strict_projection(p,tm):
  if not p.HasField('accounting_id') or not uuid16_ok(p.accounting_id):return False
  if not p.HasField('reward_basis_satoshis') or p.reward_basis_satoshis<=0:return False
  if p.block_only:return False
+ try:projection_pps(p,policy)
+ except ValueError:return False
  return True
 
 def strict_accounting(m,tm,outer):
@@ -69,3 +73,18 @@ for x in V['cases']:
 # Pin RFC 9562 UUID bytes -> canonical Miningcore Guid N representation.
 b=bytes.fromhex(BASE['parent_aux']['accounting_id_hex']);assert uuid.UUID(bytes=b).hex==BASE['parent_aux']['accounting_id_hex'].lower()
 print('CoreDRP Miningcore accounting schema 3 strict safety vectors: OK')
+
+# Parsed protobuf PPS semantics execute against immutable scope policy context.
+p=A();p.CopyFrom(base);q=p.primary
+policy={'scheme':4,'retained':'98','coin':'bitcoin','eligible_network':True}
+q.reward_basis_satoshis=5000000000;q.share.difficulty=1;q.share.network_difficulty=100
+assert not strict_projection(q,tm,policy)  # required presence
+q.pps_calculated_amount.canonical='0.49';assert strict_projection(q,tm,policy)
+q.pps_calculated_amount.canonical='0.5';assert not strict_projection(q,tm,policy)
+assert strict_projection(q,tm,dict(policy,retained='100'))
+assert not strict_projection(q,tm,{'scheme':1})
+q.pps_calculated_amount.canonical='0.49'
+assert not strict_projection(q,tm,dict(policy,coin='litecoin'))
+assert not strict_projection(q,tm,dict(policy,eligible_network=False))
+q.pps_calculated_amount.canonical='0.490';assert not strict_projection(q,tm,policy)
+print('CoreDRP parsed PPS contract, presence, fee and eligibility checks: OK')

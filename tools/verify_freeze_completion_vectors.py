@@ -29,7 +29,7 @@ for x in D['producer_idempotency_cases']:
  assert got==x['expected'],x
 # Frozen semantic allocations.
 for x in D['semantic_allocation_cases']:
- valid=(x['payout_scheme'] in {1,2,3,4,5,6} and x['completeness_policy_version']==2 and x['retention_policy_version']==1 and x['cross_sender_ordering_policy']==1 and x['admission_policy_version']==3);got='ACCEPT' if valid else 'SEMANTIC_CONTRACT_MISMATCH';assert got==x['expected'],x
+ valid=(x['payout_scheme'] in {1,2,3,4,5,6} and x['completeness_policy_version']==3 and x['retention_policy_version']==1 and x['cross_sender_ordering_policy']==1 and x['admission_policy_version']==3);got='ACCEPT' if valid else 'SEMANTIC_CONTRACT_MISMATCH';assert got==x['expected'],x
 # Exact staged-policy evidence and staging digest reconstruction.
 def staged_evidence(x):
  q=x['scope'].encode('ascii');sender=uuid.UUID(x['sender_id']).bytes if x['sender_id'] else b'';mode=b'' if x['mode'] is None else u8(x['mode'])

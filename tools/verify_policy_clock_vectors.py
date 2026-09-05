@@ -12,7 +12,7 @@ def verify_bootstrap(x):
             x['generation'] == 1
             and x['action'] == 'COMPLETENESS_MODE_CHANGE'
             and x.get('old_mode') == 'NO_POLICY'
-            and x.get('new_mode') in {'RELAY_REQUIRED', 'NO_RELAY_REQUIRED'}
+            and x.get('new_mode') == 'NO_RELAY_REQUIRED'
             and x['effective_unix_ms'] == x['origin_unix_ms']
             and x.get('required_staging_senders', []) == []
         )

@@ -21,25 +21,25 @@ Reference vectors/tools are lower authority.
 
 ## 1. Mining Profile 1.1 canonical source
 
-Canonical source bytes remain:
+Canonical source grammar remains:
 
 `uint16_be(profile_id_len) || "coredrp.mining" || uint32_be(1) || uint32_be(1) || uint16_be(scope_len) || scope || uint8(payout_scheme) || uint16_be(coin_id_len) || coin_id_ascii || uint16_be(network_id_len) || network_id_ascii || uint16_be(completeness_policy_version) || uint16_be(retention_policy_version) || uint8(cross_sender_ordering_policy) || uint32_be(permitted_clock_skew_ms) || uint32_be(max_clock_step_ms) || uint32_be(probe_interval_ms) || uint32_be(probe_processing_max_ms) || uint32_be(evidence_expiry_ms) || uint32_be(unknown_grace_ms) || uint16_be(admission_idempotency_policy_version) || uint32_be(max_admission_records_per_generation)`.
 
 Legal values:
 
 - `payout_scheme`: 1 PPLNS, 2 PPLNSBF, 3 PROP, 4 PPS, 5 CUSTODIAL_SOLO, 6 DIRECT_SOLO;
-- `completeness_policy_version = 2`;
+- `completeness_policy_version = 3`;
 - `retention_policy_version = 1`;
 - `cross_sender_ordering_policy = 1`;
 - `admission_idempotency_policy_version = 3`;
 - `semantic_retry_threshold = 3`;
 - `max_admission_records_per_generation` in `1..100000000`.
 
-Reference `btc1` Mining source/digest remain:
+Reference `btc1` Mining source/digest (completeness policy 3):
 
-`000e636f72656472702e6d696e696e670000000100000001000462746331010007626974636f696e00076d61696e6e65740002000101000007d0000000fa00001388000000fa00003a980001d4c00003000f4240`
+`000e636f72656472702e6d696e696e670000000100000001000462746331010007626974636f696e00076d61696e6e65740003000101000007d0000000fa00001388000000fa00003a980001d4c00003000f4240`
 
-`d21a908c547bcd177ed82b19ccf16bc6ea75b7631d86b38c3e86480b9e9f3307`
+`2b24a20f3f4b60c050839a3f7e92741c765d54497db06efb1ac287eaa51b68b6`
 
 ## 2. Miningcore Profile 1.1 canonical source
 
@@ -52,7 +52,7 @@ Legal values are exact:
 - `accounting_schema_version = 3` — strict ordinary Miningcore accounting compatibility, projection-local authorization/membership and non-block-only accounting;
 - `persistence_schema_version = 1`;
 - `direct_candidate_validation_version = 2`;
-- `settlement_policy_version = 3` — resolved payout parameters, bound share-difficulty adjustment, versioned prune summaries and canonical quarantine recovery.
+- `settlement_policy_version = 4` — exact score/cutoff arithmetic, bound PPS liability, canonical effect identities, exact PoolId mapping, and financial safety hardening. Version 3 is historical and MUST NOT negotiate as version 4; the financial migration barrier applies.
 
 Both digests MUST be exactly 32 bytes and recomputed from their normative registries for the Mining-selected network/payout configuration.
 
@@ -60,15 +60,15 @@ Reference `btc1` uses:
 
 - Bitcoin mainnet policy digest `0f477ab81c34cfc8ec31e146bd86f6760554e7d803d9522c7b0e0e818f412e3a`;
 - share-difficulty adjustment policy `identity` digest `512714e3717013d13566d57aef8ae1fee13b996cf4f0adf6e20eb05ff4d5edcf`;
-- PPLNS resolved factor `2` settlement-policy digest `7fab911a63b4a76576088f1ef27337132e0ae7fb55e040cd7df119ed66fa89e0`.
+- PPLNS resolved factor `2` settlement-policy digest `779cd6c162373a543660f304d11eab7b19faace462be46886833fd2fa025276a`.
 
 Reference Miningcore source hex:
 
-`0012636f72656472702e6d696e696e67636f726500000001000000010004627463310000000300000001000200030f477ab81c34cfc8ec31e146bd86f6760554e7d803d9522c7b0e0e818f412e3a7fab911a63b4a76576088f1ef27337132e0ae7fb55e040cd7df119ed66fa89e0`
+`0012636f72656472702e6d696e696e67636f726500000001000000010004627463310000000300000001000200040f477ab81c34cfc8ec31e146bd86f6760554e7d803d9522c7b0e0e818f412e3a779cd6c162373a543660f304d11eab7b19faace462be46886833fd2fa025276a`
 
 SHA-256:
 
-`35589865f465db5a241e9b70f9da79e5d93f369a6ed2b21eed9c0fc2987f0d0e`
+`d48a0a0d88a10d4a9feef462f0ee9b8240122d9c05e21e8fdd3a4f21ac3c16b5`
 
 ## 3. Clock composition
 

@@ -1,0 +1,271 @@
+{
+  "format": "CoreDRP settlement-policy-v4 financial hardening vectors",
+  "division_cases": [
+    {
+      "assigned": "3ff0000000000000",
+      "network": "4008000000000000",
+      "expected": "3fd5555555555555"
+    },
+    {
+      "assigned": "3ff0000000000001",
+      "network": "4008000000000000",
+      "expected": "3fd5555555555557"
+    },
+    {
+      "assigned": "0010000000000000",
+      "network": "4000000000000000",
+      "expected": "0008000000000000"
+    },
+    {
+      "assigned": "0000000000000001",
+      "network": "4000000000000000",
+      "expected": "REJECT"
+    },
+    {
+      "assigned": "7fefffffffffffff",
+      "network": "0000000000000001",
+      "expected": "REJECT"
+    }
+  ],
+  "windows": [
+    {
+      "rows": [
+        {
+          "accounting_id": "1",
+          "time": 1000,
+          "sender": "00000000000000000000000000000001",
+          "sequence": 1,
+          "relay": "00000000000000000000000000000001",
+          "difficulty": "3fe0000000000000",
+          "network": "3ff0000000000000"
+        },
+        {
+          "accounting_id": "2",
+          "time": 1000,
+          "sender": "00000000000000000000000000000002",
+          "sequence": 1,
+          "relay": "00000000000000000000000000000002",
+          "difficulty": "3fe0000000000000",
+          "network": "3ff0000000000000"
+        },
+        {
+          "accounting_id": "3",
+          "time": 1000,
+          "sender": "00000000000000000000000000000003",
+          "sequence": 1,
+          "relay": "00000000000000000000000000000003",
+          "difficulty": "3fe0000000000000",
+          "network": "3ff0000000000000"
+        },
+        {
+          "accounting_id": "4",
+          "time": 1000,
+          "sender": "00000000000000000000000000000004",
+          "sequence": 1,
+          "relay": "00000000000000000000000000000004",
+          "difficulty": "3fe0000000000000",
+          "network": "3ff0000000000000"
+        }
+      ],
+      "factor": "1",
+      "expected_ids": [
+        "4",
+        "3"
+      ],
+      "expected_contributions": [
+        "1/2",
+        "1/2"
+      ],
+      "expected_fractions": [
+        "1",
+        "1"
+      ]
+    },
+    {
+      "rows": [
+        {
+          "accounting_id": "2",
+          "time": 1000,
+          "sender": "00000000000000000000000000000002",
+          "sequence": 1,
+          "relay": "00000000000000000000000000000002",
+          "difficulty": "3fefffffffffffff",
+          "network": "3ff0000000000000"
+        },
+        {
+          "accounting_id": "1",
+          "time": 1000,
+          "sender": "00000000000000000000000000000001",
+          "sequence": 1,
+          "relay": "00000000000000000000000000000001",
+          "difficulty": "3fe0000000000000",
+          "network": "3ff0000000000000"
+        }
+      ],
+      "factor": "1",
+      "expected_ids": [
+        "2",
+        "1"
+      ],
+      "expected_contributions": [
+        "9007199254740991/9007199254740992",
+        "1/9007199254740992"
+      ],
+      "expected_fractions": [
+        "1",
+        "1/4503599627370496"
+      ]
+    },
+    {
+      "rows": [
+        {
+          "accounting_id": "2",
+          "time": 1000,
+          "sender": "00000000000000000000000000000002",
+          "sequence": 1,
+          "relay": "00000000000000000000000000000002",
+          "difficulty": "3ff0000000000000",
+          "network": "3ff0000000000000"
+        },
+        {
+          "accounting_id": "1",
+          "time": 1000,
+          "sender": "00000000000000000000000000000001",
+          "sequence": 1,
+          "relay": "00000000000000000000000000000001",
+          "difficulty": "3fe0000000000000",
+          "network": "3ff0000000000000"
+        }
+      ],
+      "factor": "1",
+      "expected_ids": [
+        "2"
+      ],
+      "expected_contributions": [
+        "1"
+      ],
+      "expected_fractions": [
+        "1"
+      ]
+    },
+    {
+      "rows": [
+        {
+          "accounting_id": "1",
+          "time": 1000,
+          "sender": "00000000000000000000000000000001",
+          "sequence": 1,
+          "relay": "00000000000000000000000000000001",
+          "difficulty": "3fe0000000000000",
+          "network": "3ff0000000000000"
+        }
+      ],
+      "factor": "2",
+      "expected_ids": [
+        "1"
+      ],
+      "expected_contributions": [
+        "1/2"
+      ],
+      "expected_fractions": [
+        "1"
+      ]
+    }
+  ],
+  "pps_policies": [
+    {
+      "scheme": 4,
+      "parameters": {
+        "retained_reward_percentage": "100"
+      },
+      "source_hex": "000304512714e3717013d13566d57aef8ae1fee13b996cf4f0adf6e20eb05ff4d5edcf0001001a72657461696e65645f7265776172645f70657263656e746167650003313030",
+      "sha256": "e2ecad81ada9b306b8541fd81286e52d9ef62f038590b5b9325bda23bbb4ed7e"
+    },
+    {
+      "scheme": 4,
+      "parameters": {
+        "retained_reward_percentage": "98"
+      },
+      "source_hex": "000304512714e3717013d13566d57aef8ae1fee13b996cf4f0adf6e20eb05ff4d5edcf0001001a72657461696e65645f7265776172645f70657263656e7461676500023938",
+      "sha256": "22b41690301af1369babe8165118a97f70a0227a8eb36f75e8c87a7c79a317a9"
+    }
+  ],
+  "pps_cases": [
+    {
+      "reward": 5000000000,
+      "assigned": "3ff0000000000000",
+      "network": "4059000000000000",
+      "retained": "100",
+      "expected": "0.5"
+    },
+    {
+      "reward": 5000000000,
+      "assigned": "3ff0000000000000",
+      "network": "4059000000000000",
+      "retained": "98",
+      "expected": "0.49"
+    },
+    {
+      "reward": 100000000,
+      "assigned": "3ff0000000000000",
+      "network": "4008000000000000",
+      "retained": "100",
+      "expected": "0.333333333333333333333333"
+    },
+    {
+      "reward": 1,
+      "assigned": "0000000000000001",
+      "network": "3ff0000000000000",
+      "retained": "100",
+      "expected": "REJECT"
+    }
+  ],
+  "effects": {
+    "summary_context": {
+      "scope": "btc1",
+      "settlement_id_hex": "7331",
+      "mining_scope_contract_digest32": "2b24a20f3f4b60c050839a3f7e92741c765d54497db06efb1ac287eaa51b68b6",
+      "miningcore_scope_contract_digest32": "d48a0a0d88a10d4a9feef462f0ee9b8240122d9c05e21e8fdd3a4f21ac3c16b5"
+    },
+    "sources": [
+      {
+        "kind": 1,
+        "identity": "0191b00100007000800000000000e001",
+        "sender": "00112233445566778899aabbccddeeff",
+        "epoch": "0191b00100007000800000000000e002",
+        "lane": 0,
+        "sequence": 41,
+        "relay": "0191b00100007000800000000000e003",
+        "event_type": 512,
+        "payload_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "miner": "miner1",
+        "amount": "12.5"
+      },
+      {
+        "kind": 1,
+        "identity": "0191b00100007000800000000000e004",
+        "sender": "00112233445566778899aabbccddeeff",
+        "epoch": "0191b00100007000800000000000e002",
+        "lane": 0,
+        "sequence": 42,
+        "relay": "0191b00100007000800000000000e005",
+        "event_type": 512,
+        "payload_hash": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        "miner": "miner1",
+        "amount": "7.5"
+      }
+    ],
+    "preimages": [
+      "000101000462746331000273312b24a20f3f4b60c050839a3f7e92741c765d54497db06efb1ac287eaa51b68b6d48a0a0d88a10d4a9feef462f0ee9b8240122d9c05e21e8fdd3a4f21ac3c16b50191b00100007000800000000000e00100112233445566778899aabbccddeeff0191b00100007000800000000000e0020000000000000000290191b00100007000800000000000e0030200cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc00066d696e657231000431322e35",
+      "000101000462746331000273312b24a20f3f4b60c050839a3f7e92741c765d54497db06efb1ac287eaa51b68b6d48a0a0d88a10d4a9feef462f0ee9b8240122d9c05e21e8fdd3a4f21ac3c16b50191b00100007000800000000000e00400112233445566778899aabbccddeeff0191b00100007000800000000000e00200000000000000002a0191b00100007000800000000000e0050200cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc00066d696e6572310003372e35"
+    ],
+    "records": [
+      "0001010191b00100007000800000000000e00100066d696e657231000431322e3519f24545dc5825b022f1473ed57ad6ae9faf2598a053e5614afaa2fa09ddd4d4",
+      "0001010191b00100007000800000000000e00400066d696e6572310003372e35484d7310733d75bc36c6545a14135ebbce6b5429b0c241e8ef594dba81787bc2"
+    ],
+    "participant_digest": "83e8a996386364f290b77840f2a10204de75f346eb872297023134b5677c4534",
+    "miner_totals": {
+      "miner1": "20"
+    }
+  }
+}

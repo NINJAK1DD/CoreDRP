@@ -43,7 +43,7 @@ For old scope-contract pair `C`, define `NoLiveDependencies(Q,C)` as true only w
 2. no unsettled PPS liability/accounting effect accepted under `C`;
 3. no unfinalized CUSTODIAL_SOLO winning-share/block attribution under `C`;
 4. no PREPARED, SUBMITTED_UNCERTAIN, OBSERVED_ACTIVE or QUARANTINED direct candidate whose proof binds `C`;
-5. no `UNRESOLVED` or `RESOLVED_WAIVED` gap/quarantine/policy-reconciliation range whose affected financial history binds `C`;
+5. no `UNRESOLVED`, `RESOLVED_WAIVED`, or `POLICY_RECONCILIATION_PENDING` gap/quarantine/policy-reconciliation range or effect whose affected financial history binds `C`;
 6. no live settlement override whose audit dependency still references ordinary evidence under `C`;
 7. no retained-epoch import/reconciliation operation in progress for effects interpreted under `C`;
 8. no active producer generation or in-flight admission under the old Mining digest;
