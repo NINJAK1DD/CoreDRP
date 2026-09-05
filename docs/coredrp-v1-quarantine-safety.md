@@ -38,7 +38,7 @@ Every settlement whose dependency set intersects the affected event/range has `S
 
 ### RESOLVED_RECONCILED
 
-A versioned validator/profile authority has revalidated the same immutable event and the required durable financial effect has been applied atomically with the reconciliation transition. Affected settlements may then be re-evaluated.
+A registered versioned validator/profile authority has revalidated the same immutable event and the required durable financial effect has been applied atomically with the reconciliation transition. Affected settlements may then be re-evaluated.
 
 ### RESOLVED_WAIVED
 
@@ -46,12 +46,12 @@ The operator accepts the missing ordinary financial effect for audit/operations.
 
 ## 3. Canonical reconciliation evidence
 
-A reconciliation never edits the quarantined Core event. It proves that the **same immutable payload** now has a deterministic financial interpretation under a named semantic authority.
+A reconciliation never edits the quarantined Core event. It proves that the **same immutable payload** now has a deterministic financial interpretation under a registered semantic authority.
 
 Let:
 
 - `payload_hash32` be the Core event payload hash already committed by the event chain;
-- `validator_profile_digest32` be the exact 32-byte digest/version authority named by ADMIN field 11;
+- `validator_profile_digest32` be the exact 32-byte authority digest named by ADMIN field 11 and allocated by `coredrp-v1-validator-authorities.md`;
 - `mining_scope_contract_digest32` be the selected Mining digest for the financial effect scope;
 - `miningcore_scope_contract_digest32` be the selected Miningcore digest for that scope, or 32 zero bytes only for a pure Mining `0x0100` effect with no Miningcore contract;
 - the immutable identity fields be sender UUID, lane, epoch UUID, sequence, relay-event UUID, event type and chain hash from the quarantine record.
@@ -84,7 +84,7 @@ For an event with multiple payout-effect scopes, construct one evidence record p
 
 `corrected_effect_digest = SHA256(uint16_be(scope_count) || repeated(uint32_be(record_len) || record_bytes))`.
 
-This digest identifies the immutable event plus the exact semantic authority/contracts under which its missing financial effects are being applied. The actual application-effect writes remain governed by the profile registry and MUST commit atomically with the transition; matching this digest alone never substitutes for applying those effects.
+This digest identifies the immutable event plus the exact registered semantic authority/contracts under which its missing financial effects are being applied. The actual application-effect writes remain governed by the profile registry and MUST commit atomically with the transition; matching this digest alone never substitutes for applying those effects.
 
 ## 4. Reconciliation transaction
 
@@ -92,12 +92,14 @@ ADMIN `QUARANTINE_RECONCILIATION` MUST:
 
 1. lock the named quarantine and verify immutable identity;
 2. require current state `UNRESOLVED`;
-3. verify `validator_profile_digest32` is an allowed current authority for revalidation;
-4. re-run the versioned/profile semantic validator against the original immutable payload;
+3. require ADMIN field 11 to equal an allocated digest in `coredrp-v1-validator-authorities.md`; Profile 1.1's allowed set is exact and receiver-local additions are forbidden;
+4. verify the authority permits this event type and re-run that authority's exact algorithm against the original immutable payload;
 5. derive `PayoutEffectScopes` and recompute `corrected_effect_digest` exactly as Section 3;
-6. apply every missing financial effect idempotently under the selected scope contracts;
+6. apply every missing financial effect idempotently under the exact scope contracts governed by the registered authority;
 7. write effect rows, reconciliation evidence, affected settlement dependencies, quarantine state transition and receiver state-version increment in one durable transaction;
 8. COMMIT before reporting success.
+
+Unknown/unallocated authority digest, disallowed event type, still-invalid payload, contract mismatch, or effect-digest mismatch is `ADMIN_ACTION_CONFLICT` and leaves state/effects unchanged.
 
 Failure at any step leaves state/effects unchanged and emits no partial reconciliation result.
 
@@ -107,7 +109,7 @@ ADMIN `QUARANTINE_WAIVER` MUST lock/verify the same immutable identity, require 
 
 ## 6. Durable evidence
 
-A quarantine safety record contains at least scope set, sender/lane/epoch/sequence, relay-event ID, event type, immutable payload hash and chain hash, reason, validator/profile authority, affected conservative time/range, settlement references, state, reconciliation/waiver ADMIN identity/digest, corrected-effect digest when reconciled, and receiver state version.
+A quarantine safety record contains at least scope set, sender/lane/epoch/sequence, relay-event ID, event type, immutable payload hash and chain hash, reason, registered validator/profile authority digest, affected conservative time/range, settlement references, state, reconciliation/waiver ADMIN identity/digest, corrected-effect digest when reconciled, and receiver state version.
 
 The audit record is never destructively pruned while any settlement/proof or operator audit requirement depends on it.
 
