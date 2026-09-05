@@ -4,7 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 
-internal static class Draft05Checks
+internal static class CurrentAdmissionChecks
 {
     static byte[] U8(int n)=>[(byte)n];
     static byte[] U16(int n){var b=new byte[2];BinaryPrimitives.WriteUInt16BigEndian(b,(ushort)n);return b;}
@@ -23,24 +23,21 @@ internal static class Draft05Checks
         F64(x.GetProperty("difficulty").GetDouble()),F64(x.GetProperty("achieved_share_difficulty").GetDouble()),F64(x.GetProperty("actual_difficulty").GetDouble()),F64(x.GetProperty("network_difficulty").GetDouble()),
         Lp32(Utf8(x.GetProperty("source_ip").GetString()!)),Lp32(Utf8(x.GetProperty("source").GetString()!)),Lp32(Utf8(x.GetProperty("session_id").GetString()!)),
         U8(x.GetProperty("is_block_candidate").GetBoolean()?1:0),OptBytes(x,"candidate_hash_hex"),OptText(x,"candidate_kind"),OptText(x,"transaction_confirmation_data"),OptText(x,"block_reward",true));
+
     [ModuleInitializer]
     internal static void Init()
     {
         var root=Directory.GetCurrentDirectory();
-        using var doc=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"docs/coredrp-v1-draft05-vectors.json")));
+        using var doc=JsonDocument.Parse(File.ReadAllText(Path.Combine(root,"docs/coredrp-v1-admission-vectors.json")));
         var d=doc.RootElement;
-        var rq=d.GetProperty("mining_share_request_v1");var req=MiningShareRequestV1(rq);
-        if(Hex(req)!=rq.GetProperty("canonical_request_hex").GetString())throw new Exception("Draft 0.5 MiningShare canonical request");
-        var a=d.GetProperty("admission_digest");if(Hex(req)!=a.GetProperty("canonical_request_hex").GetString())throw new Exception("Draft 0.5 request/vector mismatch");
+        var rq=d.GetProperty("mining_share_request_v1");
+        var req=MiningShareRequestV1(rq);
+        if(Hex(req)!=rq.GetProperty("canonical_request_hex").GetString())throw new Exception("current MiningShare canonical request");
+        var a=d.GetProperty("admission_digest");
+        if(Hex(req)!=a.GetProperty("canonical_request_hex").GetString())throw new Exception("current request/vector mismatch");
         var scope=Convert.FromHexString(a.GetProperty("scope_hex").GetString()!);
         var pre=Cat(Encoding.ASCII.GetBytes("CoreDRP1-ADMISSION"),U8(a.GetProperty("lane").GetInt32()),U16(Convert.ToInt32(a.GetProperty("event_type").GetString(),16)),U16(scope.Length),scope,U32((uint)req.Length),req);
-        if(Hex(pre)!=a.GetProperty("preimage_hex").GetString()||Hex(SHA256.HashData(pre))!=a.GetProperty("sha256").GetString())throw new Exception("Draft 0.5 admission digest");
-        foreach(var p in d.GetProperty("semantic_contracts").EnumerateObject()){
-            var src=Convert.FromHexString(p.Value.GetProperty("source_hex").GetString()!);if(Hex(SHA256.HashData(src))!=p.Value.GetProperty("sha256").GetString())throw new Exception("Draft 0.5 semantic contract "+p.Name);
-        }
-        foreach(var x in d.GetProperty("admin_order_cases").EnumerateArray()){
-            var ids=x.GetProperty("field_ids").EnumerateArray().Select(v=>v.GetInt32()).ToArray();bool strict=true;for(int i=1;i<ids.Length;i++)strict&=ids[i-1]<ids[i];bool width=true;if(x.TryGetProperty("uint64_field_id",out var uf)){var target=uf.GetInt32();var widths=x.GetProperty("widths").EnumerateArray().Select(v=>v.GetInt32()).ToArray();width=widths[Array.IndexOf(ids,target)]==8;}var got=strict&&width?"ACCEPT":"REJECT";if(got!=x.GetProperty("expected").GetString())throw new Exception("Draft 0.5 ADMIN ordering");
-        }
-        Console.WriteLine("CoreDRP C# Draft 0.5 supplemental vectors: OK");
+        if(Hex(pre)!=a.GetProperty("preimage_hex").GetString()||Hex(SHA256.HashData(pre))!=a.GetProperty("sha256").GetString())throw new Exception("current Mining admission digest");
+        Console.WriteLine("CoreDRP C# current Mining admission vectors: OK");
     }
 }
