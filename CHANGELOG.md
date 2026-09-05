@@ -1,5 +1,31 @@
 # Changelog
 
+## Draft 0.5 — completeness, clock, recovery and evidence hardening
+
+- added Core 1.1 receiver→sender `ClockStateUpdate` with replay-safe generations and local evidence expiry;
+- removed echoed receiver `t1` from authoritative clock computation and froze unique outstanding probe semantics;
+- qualified post-binding outage admission so clock, WAL, storage, authorization and membership safety gates still apply;
+- changed Mining financial admission identity to permanent `(sender,lane,key)` tombstones and caller-request bytes, including lane in the digest;
+- made exact profile support rows version-specific, selecting highest mutually supported major then minor with a Core minimum per exact version;
+- enforced temporal membership on RELAY_REQUIRED payout-relevant event admission and scope-contract ownership per event type;
+- required new lane-global checkpoints to be authorized for every scope they newly assert;
+- added per-scope/wildcard exceptional-abandonment gaps, retained abandoned evidence and retired-epoch import reconciliation;
+- added audited receiver logical-ID/database-incarnation replacement approval and deterministic repin/replay/recovery-gap matrix;
+- changed flow-control byte charge to fixed per-event overhead + scope + payload, with zero windows pausing all EventBatch traffic;
+- bounded production event time and required checked time arithmetic;
+- expanded WAL/anchor/spool failure semantics and separated pre-transaction structural checks from in-transaction semantics;
+- bounded repeated immutable semantic failures with operator-intervention state;
+- added duplicate-txid rejection for CVE-2012-2459 Merkle malleability and executable positive/negative Bitcoin evidence cases;
+- added declared consensus/merge-mining commitment outputs to the Miningcore candidate wire;
+- tightened BIP34 wording to network activation parameters/minimal CScriptNum and clarified network source from the Mining scope contract;
+- added candidate-state referential/same-scope/monotonic transaction rules;
+- replaced finite idempotency-horizon state vectors with permanent financial-idempotency cases;
+- added receiver replacement, wildcard gaps, unlisted sender, checkpoint revocation, clock-state expiry/replay, event-time, flow-charge and scope-contract ownership vectors;
+- added supplemental exact-version negotiation, admission, ADMIN ordering, scope digest/ASCII and candidate referential conformance vectors;
+- replaced the hand-maintained protobuf surface parser gate with exact reviewed protobuf blob fingerprints;
+- removed unused Core imports from profile protobuf files;
+- reduced README assurance language and added an in-repository adversarial review disposition trail.
+
 ## Draft 0.4 — transition, negotiation and evidence hardening
 
 - required normal epoch transitions to fully drain receiver commit, sender remembered ACK and sender durable tail before retirement;

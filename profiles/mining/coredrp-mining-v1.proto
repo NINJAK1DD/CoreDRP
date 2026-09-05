@@ -3,7 +3,6 @@
 syntax = "proto3";
 package coredrp.mining.v1;
 option csharp_namespace = "CoreDRP.Mining.V1";
-import "protocol/coredrp-v1.proto";
 
 message Decimal38Scale24 { string canonical = 1; reserved 2 to 15; }
 message MiningShareEvent {

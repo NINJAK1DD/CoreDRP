@@ -1,0 +1,6 @@
+{
+  "note": "Draft 0.5 exact reviewed protobuf blob fingerprints. Any protobuf edit requires explicit protocol review and fingerprint update.",
+  "protocol/coredrp-v1.proto": "fabac5d05d7755876a7fe61d350fdbda068c973f",
+  "profiles/mining/coredrp-mining-v1.proto": "672aa9b286a79aeb382572c29bab72f2c8cd1e5a",
+  "profiles/miningcore/coredrp-miningcore-v1.proto": "a8c7bdf0c0daef46b693400d20c24b2b6015d5f2"
+}

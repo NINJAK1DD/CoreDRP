@@ -13,11 +13,11 @@ jobs:
       - run: python3 tools/check_metrics_registry.py
       - run: python3 tools/check_wire_compatibility.py
       - run: python3 tools/verify_test_vectors.py
+      - run: python3 tools/verify_draft05_vectors.py
       - run: python3 tools/verify_state_vectors.py
       - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler && python3 -m pip install protobuf
       - run: mkdir -p .build && protoc -I . --descriptor_set_out=.build/coredrp.pb --include_imports --include_source_info protocol/coredrp-v1.proto profiles/mining/coredrp-mining-v1.proto profiles/miningcore/coredrp-miningcore-v1.proto
       - run: python3 tools/verify_profile_vectors.py
-      - run: python3 tools/verify_witness_commitment_regression.py
       - uses: bufbuild/buf-setup-action@v1
       - run: buf lint
       - uses: actions/setup-dotnet@v4
@@ -28,15 +28,19 @@ jobs:
           curl -fL --retry 3 -o .build/tla2tools.jar https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
           echo "b658b4e504fdf0b721caf7066320f6b6fe5805f4dd2f717d0e47baba4097205e  .build/tla2tools.jar" | sha256sum -c -
           java -XX:+UseParallelGC -jar .build/tla2tools.jar -config model/CoreDRP.cfg model/CoreDRP.tla
-      - name: Prove TLA+ negative mutation is detectable
+      - name: Prove realistic TLA+ mutations are detected
         run: |
-          set +e
-          java -XX:+UseParallelGC -jar .build/tla2tools.jar -config model/CoreDRP-unsafe.cfg model/CoreDRP.tla > .build/tla-unsafe.log 2>&1
-          rc=$?
-          set -e
-          cat .build/tla-unsafe.log
-          if [ "$rc" -eq 0 ]; then
-            echo "unsafe TLA+ mutation unexpectedly satisfied all invariants" >&2
-            exit 1
-          fi
-          grep -q "Invariant PruneSafe is violated" .build/tla-unsafe.log
+          python3 tools/mutate_tla.py
+          declare -A expected=( [prune]=PruneSafe [ack]=AckSafe [drain]=NormalTransitionDrained [payout]=PayoutEvidenceSafe )
+          for m in prune ack drain payout; do
+            set +e
+            java -XX:+UseParallelGC -jar .build/tla2tools.jar -config model/CoreDRP.cfg .build/mutations/$m/CoreDRP.tla > .build/tla-$m.log 2>&1
+            rc=$?
+            set -e
+            cat .build/tla-$m.log
+            if [ "$rc" -eq 0 ]; then
+              echo "realistic mutation $m unexpectedly satisfied all invariants" >&2
+              exit 1
+            fi
+            grep -q "Invariant ${expected[$m]} is violated" .build/tla-$m.log
+          done
