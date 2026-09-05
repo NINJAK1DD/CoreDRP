@@ -47,9 +47,10 @@ jobs:
               exit 0
             fi
             git fetch --no-tags --depth=1 origin "$before"
-            rm -rf .build/before && mkdir -p .build/before
-            git archive "$before" | tar -x -C .build/before
-            against='.build/before'
+            before_dir="$(mktemp -d)"
+            trap 'rm -rf "$before_dir"' EXIT
+            git archive "$before" | tar -x -C "$before_dir"
+            against="$before_dir"
           fi
           set +e
           output="$(buf breaking --against "$against" 2>&1)"
