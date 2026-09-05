@@ -95,8 +95,23 @@ message ProfileSelection {
   reserved 5 to 15;
 }
 
-message ScopeContractSupport { bytes scope = 1; string profile_id = 2; bytes semantic_contract_digest = 3; reserved 4 to 15; }
-message ScopeContractSelection { bytes scope = 1; string profile_id = 2; bytes semantic_contract_digest = 3; reserved 4 to 15; }
+message ScopeContractSupport {
+  bytes scope = 1;
+  string profile_id = 2;
+  bytes semantic_contract_digest = 3;
+  uint32 profile_major = 4;
+  uint32 profile_minor = 5;
+  reserved 6 to 15;
+}
+
+message ScopeContractSelection {
+  bytes scope = 1;
+  string profile_id = 2;
+  bytes semantic_contract_digest = 3;
+  uint32 profile_major = 4;
+  uint32 profile_minor = 5;
+  reserved 6 to 15;
+}
 
 message EventBatch {
   uint64 first_sequence = 1;
@@ -115,13 +130,30 @@ message Event {
   reserved 7 to 15;
 }
 
-message CompletenessCheckpoint { int64 complete_through_unix_ms = 1; reserved 2 to 15; }
+message CompletenessCheckpoint {
+  int64 complete_through_unix_ms = 1;
+  reserved 2 to 15;
+}
 
-enum CoreEventType { CORE_EVENT_TYPE_UNSPECIFIED = 0; CORE_EVENT_TYPE_COMPLETENESS_CHECKPOINT = 1; }
+enum CoreEventType {
+  CORE_EVENT_TYPE_UNSPECIFIED = 0;
+  CORE_EVENT_TYPE_COMPLETENESS_CHECKPOINT = 1;
+}
 
-message Ack { uint64 committed_through_sequence = 1; bytes committed_chain_hash = 2; int64 committed_at_unix_ms = 3; reserved 4 to 15; }
+message Ack {
+  uint64 committed_through_sequence = 1;
+  bytes committed_chain_hash = 2;
+  int64 committed_at_unix_ms = 3;
+  reserved 4 to 15;
+}
 
-message ProtocolError { ErrorCode code = 1; ErrorDisposition disposition = 2; string message = 3; optional uint64 sequence = 4; reserved 5 to 15; }
+message ProtocolError {
+  ErrorCode code = 1;
+  ErrorDisposition disposition = 2;
+  string message = 3;
+  optional uint64 sequence = 4;
+  reserved 5 to 15;
+}
 
 enum ErrorDisposition {
   ERROR_DISPOSITION_UNSPECIFIED = 0;
@@ -133,23 +165,98 @@ enum ErrorDisposition {
 
 enum ErrorCode {
   ERROR_CODE_UNSPECIFIED = 0;
-  PROTOCOL_VERSION_MISMATCH = 1; INVALID_HANDSHAKE = 2; UNAUTHORIZED_SENDER = 3; UNAUTHORIZED_SCOPE = 4;
-  UNKNOWN_EVENT_TYPE = 5; UNADVERTISED_EVENT_TYPE = 6; EVENT_VALIDATOR_UNAVAILABLE = 7; SEQUENCE_GAP = 8;
-  CHAIN_MISMATCH = 9; SPLIT_LOG = 10; SENDER_ROLLBACK = 11; RECOVERY_GAP = 12; EPOCH_NOT_APPROVED = 13;
-  EVENT_TOO_LARGE = 14; SEMANTIC_CONTRACT_MISMATCH = 15; RECEIVER_DURABILITY_UNAVAILABLE = 16;
-  CLOCK_CONTRACT_VIOLATION = 17; MALFORMED_FRAME = 18; EVENT_TYPE_OUT_OF_RANGE = 19; LANE_ID_OUT_OF_RANGE = 20;
-  SEQUENCE_OUT_OF_RANGE = 21; RESOURCE_LIMIT_EXCEEDED = 22; CONTRACT_BINDING_CHANGED = 23; RECEIVER_ROLLBACK = 24;
-  RECEIVER_INCARNATION_CHANGED = 25; STREAM_ALREADY_ACTIVE = 26; SEMANTIC_PAYLOAD_INVALID = 27;
-  CHECKPOINT_BACKDATED_EVENT = 28; ADMIN_ACTION_CONFLICT = 29; IDEMPOTENCY_KEY_CONFLICT = 30; INVALID_STATE_TRANSITION = 31;
-  reserved 32 to 63;
+  PROTOCOL_VERSION_MISMATCH = 1;
+  INVALID_HANDSHAKE = 2;
+  UNAUTHORIZED_SENDER = 3;
+  UNAUTHORIZED_SCOPE = 4;
+  UNKNOWN_EVENT_TYPE = 5;
+  UNADVERTISED_EVENT_TYPE = 6;
+  EVENT_VALIDATOR_UNAVAILABLE = 7;
+  SEQUENCE_GAP = 8;
+  CHAIN_MISMATCH = 9;
+  SPLIT_LOG = 10;
+  SENDER_ROLLBACK = 11;
+  RECOVERY_GAP = 12;
+  EPOCH_NOT_APPROVED = 13;
+  EVENT_TOO_LARGE = 14;
+  SEMANTIC_CONTRACT_MISMATCH = 15;
+  RECEIVER_DURABILITY_UNAVAILABLE = 16;
+  CLOCK_CONTRACT_VIOLATION = 17;
+  MALFORMED_FRAME = 18;
+  EVENT_TYPE_OUT_OF_RANGE = 19;
+  LANE_ID_OUT_OF_RANGE = 20;
+  SEQUENCE_OUT_OF_RANGE = 21;
+  RESOURCE_LIMIT_EXCEEDED = 22;
+  CONTRACT_BINDING_CHANGED = 23;
+  RECEIVER_ROLLBACK = 24;
+  RECEIVER_INCARNATION_CHANGED = 25;
+  STREAM_ALREADY_ACTIVE = 26;
+  SEMANTIC_PAYLOAD_INVALID = 27;
+  CHECKPOINT_BACKDATED_EVENT = 28;
+  ADMIN_ACTION_CONFLICT = 29;
+  IDEMPOTENCY_KEY_CONFLICT = 30;
+  INVALID_STATE_TRANSITION = 31;
+  INVALID_EVENT_PLACEMENT = 32;
+  ATOMIC_RESOURCE_LIMIT_EXCEEDED = 33;
+  RECEIVER_ID_CHANGED = 34;
+  reserved 35 to 63;
 }
 
-message WindowUpdate { uint32 window_events = 1; uint64 window_bytes = 2; reserved 3 to 15; }
-message ClientHeartbeat { int64 sent_at_unix_ms = 1; uint64 durable_tail_sequence = 2; uint64 oldest_retained_sequence = 3; uint64 spool_bytes = 4; reserved 5 to 15; }
-message ServerHeartbeat { int64 sent_at_unix_ms = 1; uint64 committed_sequence = 2; reserved 3 to 15; }
-message ClockProbeRequest { uint64 probe_id = 1; int64 receiver_send_unix_ms = 2; reserved 3 to 15; }
-message ClockProbeResponse { uint64 probe_id = 1; int64 receiver_send_unix_ms = 2; int64 sender_receive_unix_ms = 3; int64 sender_send_unix_ms = 4; reserved 5 to 15; }
-message ChainProbeRequest { uint64 first_sequence = 1; uint32 count = 2; reserved 3 to 15; }
-message ChainProbeResponse { uint64 first_sequence = 1; repeated bytes chain_hashes = 2; reserved 3 to 15; }
-message Goodbye { GoodbyeReason reason = 1; string message = 2; reserved 3 to 15; }
-enum GoodbyeReason { GOODBYE_REASON_UNSPECIFIED = 0; GOODBYE_REASON_GRACEFUL_SHUTDOWN = 1; GOODBYE_REASON_DRAINING = 2; GOODBYE_REASON_MAINTENANCE = 3; }
+message WindowUpdate {
+  uint32 window_events = 1;
+  uint64 window_bytes = 2;
+  reserved 3 to 15;
+}
+
+message ClientHeartbeat {
+  int64 sent_at_unix_ms = 1;
+  uint64 durable_tail_sequence = 2;
+  uint64 oldest_retained_sequence = 3;
+  uint64 spool_bytes = 4;
+  reserved 5 to 15;
+}
+
+message ServerHeartbeat {
+  int64 sent_at_unix_ms = 1;
+  uint64 committed_sequence = 2;
+  reserved 3 to 15;
+}
+
+message ClockProbeRequest {
+  uint64 probe_id = 1;
+  int64 receiver_send_unix_ms = 2;
+  reserved 3 to 15;
+}
+
+message ClockProbeResponse {
+  uint64 probe_id = 1;
+  int64 receiver_send_unix_ms = 2;
+  int64 sender_receive_unix_ms = 3;
+  int64 sender_send_unix_ms = 4;
+  reserved 5 to 15;
+}
+
+message ChainProbeRequest {
+  uint64 first_sequence = 1;
+  uint32 count = 2;
+  reserved 3 to 15;
+}
+
+message ChainProbeResponse {
+  uint64 first_sequence = 1;
+  repeated bytes chain_hashes = 2;
+  reserved 3 to 15;
+}
+
+message Goodbye {
+  GoodbyeReason reason = 1;
+  string message = 2;
+  reserved 3 to 15;
+}
+
+enum GoodbyeReason {
+  GOODBYE_REASON_UNSPECIFIED = 0;
+  GOODBYE_REASON_GRACEFUL_SHUTDOWN = 1;
+  GOODBYE_REASON_DRAINING = 2;
+  GOODBYE_REASON_MAINTENANCE = 3;
+}
