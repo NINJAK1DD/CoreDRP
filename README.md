@@ -9,23 +9,20 @@ Originally developed for the Miningcore project.
 
 CoreDRP is a durable, authenticated, replayable event-relay protocol with a domain-independent Core, reusable Mining Profile, and Miningcore Integration Profile.
 
-The current working specification is **Draft 0.4**, incorporating six independent adversarial review passes over the public Draft 0.1 through Draft 0.3 repository states.
+The current working specification is **Draft 0.5**. Start with [`docs/CoreDRP-1-SPEC-0.5.md`](docs/CoreDRP-1-SPEC-0.5.md). Draft 0.4 remains in the repository as historical review context only.
 
-Start with [`docs/CoreDRP-1-SPEC.md`](docs/CoreDRP-1-SPEC.md).
+## Draft 0.5 safety focus
 
-## Core guarantees
-
-- sender-side durable admission before application success, with domain-separated retry-safe admission identity and bounded idempotency retention;
-- at-least-once replay with cumulative ACK only after durable receiver commit;
-- epoch-scoped cryptographic history with explicit initial approval, fully drained normal rollover, and gap-recording exceptional abandonment;
-- deterministic reconnect precedence including receiver logical identity, database incarnation, rollback, split-log and bootstrap-genesis checks;
-- sender and receiver single-writer fencing;
-- immutable event quarantine without rewriting admitted bytes or laundering completeness gaps;
-- conservative clock-bound classification with strictest-policy aggregation across scopes;
-- fail-closed temporal Mining membership/completeness-mode policy, `PayoutSafe` and `SafePruneThrough` semantics;
-- deterministic cross-sender accounting order (not a claim of physical cross-sender causality);
-- full Bitcoin direct-candidate structural evidence checks, including transaction Merkle roots and SegWit witness commitments;
-- local mining `submitblock` never waits on the recorder.
+- durable sender admission before application success, with permanent lane-namespaced financial idempotency;
+- at-least-once replay and cumulative ACK only after durable receiver commit;
+- deterministic reconnect plus explicit receiver-ID/database-incarnation replacement reconciliation;
+- fully drained normal epoch rollover and scope-complete/wildcard exceptional-abandonment gaps with retired-epoch import;
+- temporal membership enforced on RELAY_REQUIRED payout events, not merely used when calculating completeness;
+- lane-global checkpoints that require current authorization for every newly asserted covered scope;
+- conservative clock interval classification communicated explicitly receiver→sender through Core 1.1 `ClockStateUpdate`;
+- flow control charging scope + payload + per-event overhead, so empty payloads and maximum scopes cannot bypass byte windows;
+- Bitcoin direct-candidate validation with duplicate-txid rejection, txid Merkle checks, mandatory witness commitments and declared consensus/merge-mining outputs;
+- candidate-state referential integrity and transactionally checked monotonic transitions.
 
 ## Layering
 
@@ -37,7 +34,9 @@ Mining Profile
 Miningcore Integration
 ```
 
-CI enforces this dependency direction and checks specification integrity, complete protobuf syntax/package/wire compatibility, error/event/metric registries, cryptographic/contract/admission/ADMIN vectors, state-machine decisions, executed negative profile/accounting cases, legacy and SegWit Bitcoin evidence, independent C# vectors, protobuf compilation/linting, and positive plus deliberately-negative TLA+ model checks.
+CI provides **conformance and regression checks, not a proof of the whole protocol**. It validates document structure, reviewed protobuf fingerprints, registries, cryptographic constructions, state decisions, executable profile/accounting/Bitcoin positive and negative cases, independent-language vector reconstruction, and a bounded TLA+ fault model with mutation controls.
+
+Review dispositions are retained under [`docs/reviews/`](docs/reviews/).
 
 ## Licensing and attribution
 
