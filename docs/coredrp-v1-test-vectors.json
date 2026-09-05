@@ -1,0 +1,16 @@
+{
+  "format":"CoreDRP/1 current profile seed fixtures — non-cryptographic helper data",
+  "status":"current helper fixtures only; normative cryptographic/contract/admission conformance lives in the dedicated current vector files",
+  "chains":[
+    {
+      "name":"lane0_profile_seed",
+      "lane_id":0,
+      "events":[
+        {"sequence":1,"event_type":"0x0100","scope_hex":"62746331","event_time_unix_ms":1788541200000,"payload_hex":"08641209746573746d696e657229000000000000f03f31000000000000f03f39000000000000f03f410000000000408f406080cdf3ea8634"},
+        {"sequence":2,"event_type":"0x0001","scope_hex":"","event_time_unix_ms":1788541205000,"payload_hex":"0888f4f3ea8634"},
+        {"sequence":3,"event_type":"0x0200","scope_hex":"62746331","event_time_unix_ms":1788541206000,"payload_hex":"0a5f0a3808641209746573746d696e657229000000000000f03f31000000000000f03f39000000000000f03f410000000000408f4060f0fbf3ea863412100191a1b2c3d47e5f9012abcdef01234618012080c2d72f2a080a06302e303030314801"}
+      ]
+    }
+  ],
+  "metadata":{"note":"No Draft 0.4 contract/admission hashes are present here. Historical full corpus is docs/historical/coredrp-v1-draft04-vectors.json and is non-normative."}
+}
