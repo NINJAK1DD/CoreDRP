@@ -33,9 +33,9 @@ If an integration cannot map its effective `AdjustShareDifficulty` behavior to o
 
 `parameter_count = 0`.
 
-For every accepted share difficulty `D`:
+For every accepted finite positive binary64 share difficulty `D`:
 
-`AdjustedDifficulty(D) = D`.
+`AdjustedDifficulty(D) = D` with the exact original binary64 bit pattern.
 
 ### `constant_multiplier`
 
@@ -43,11 +43,19 @@ Required parameter:
 
 - `multiplier`: positive `Decimal38Scale24` canonical decimal.
 
-For every accepted share difficulty `D`:
+The arithmetic domain is **fully specified** and MUST NOT depend on the host language's decimal, binary64, extended-precision, FMA, or arbitrary-precision defaults.
 
-`AdjustedDifficulty(D) = D * multiplier`.
+Let the accepted share difficulty `D` be the exact finite positive IEEE-754 binary64 value represented by its 64 bits. Convert those bits to the exact rational value `D_exact` defined by IEEE-754 (including subnormal values if an implementation accepts them as an input difficulty). Parse canonical decimal multiplier text containing integer digits `I` and `s` fractional digits as the exact rational `M_exact = integer(I_without_point) / 10^s`.
 
-The multiplication is performed in the settlement implementation's exact numeric domain, and the multiplier's canonical decimal value is part of the contract. Overflow/invalid numeric conversion fails settlement evaluation closed; it MUST NOT silently fall back to identity.
+Compute the mathematical rational product:
+
+`P_exact = D_exact * M_exact`.
+
+Then convert **once** from `P_exact` to IEEE-754 binary64 using round-to-nearest, ties-to-even (IEEE-754 `roundTiesToEven`). No intermediate binary64 rounding of the decimal multiplier and no multiply of two already-rounded binary64 operands is conforming.
+
+The resulting finite positive binary64 value is `AdjustedDifficulty(D)`. If correct rounding would produce positive infinity, zero by underflow, NaN, or any non-positive value, settlement evaluation fails closed and the affected settlement is not safe/evaluable under this policy version. Implementations MUST NOT clamp, saturate, substitute identity, or use a wider result without the final binary64 rounding.
+
+This algorithm makes the output bit pattern identical across implementations. Conformance vectors include a case where ordinary host-language `double * double` produces a result one ULP different from the required exact-rational single-round result.
 
 No other parameters are valid.
 
@@ -73,8 +81,10 @@ SHA-256:
 
 `99081a8e8af2a531e8eff832b128badea32ed188e59245e1a9845942480b1b34`
 
+The policy digest is unchanged by this arithmetic clarification because the arithmetic algorithm is part of the fixed Profile 1.1 meaning of policy ID `constant_multiplier`; a different rounding algorithm requires a new policy ID/profile revision.
+
 ## 4. Settlement use
 
-PPLNS/PPLNSBF scoring/window calculations MUST use `AdjustedDifficulty` from the policy whose digest is bound by the selected settlement-scheme policy. Receiver-local or application-local adjustment behavior MUST NOT replace it.
+PPLNS/PPLNSBF scoring/window calculations MUST use the binary64 `AdjustedDifficulty` bit pattern produced by Section 2 from the policy whose digest is bound by the selected settlement-scheme policy. Receiver-local or application-local adjustment behavior MUST NOT replace it.
 
-PROP/PPS/SOLO integrations still bind an adjustment-policy digest so the selected Miningcore scope contract completely records the active payout handler behavior; Profile 1.1 uses `identity` when no adjustment exists.
+When a settlement accumulates multiple adjusted difficulty values, any additional score accumulation/arithmetic required by the scheme MUST follow the scheme's own frozen arithmetic rules; the adjustment policy defines only the per-share transformation above.
