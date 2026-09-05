@@ -1,4 +1,4 @@
-# CoreDRP Miningcore Bitcoin Network Policy Registry — Draft 0.5
+# CoreDRP Miningcore Bitcoin Network Policy Registry — Draft 0.6 Freeze Completion
 
 This registry is normative for Miningcore Profile 1.1 direct Bitcoin candidate validation. It binds receiver-side network validation policy into the Miningcore scope semantic contract so two receivers cannot negotiate the same scope digest while validating different consensus evidence.
 
@@ -34,6 +34,7 @@ Unknown network policy fails closed.
 
 ### `mainnet`
 
+- production use: permitted when selected by the Mining contract;
 - genesis block hash: `000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f`
 - BIP34 activation height: `227931`
 - direct-candidate validation version: `2`
@@ -43,14 +44,17 @@ Unknown network policy fails closed.
 
 ### `synthetic-regtest` conformance policy
 
-This policy exists only for the repository's deterministic conformance block and is not a Bitcoin Core regtest identity.
+This policy exists **only** for deterministic repository conformance. It is not a Bitcoin Core regtest identity and **MUST NOT be selected by any production Mining scope or production receiver configuration**.
 
-- genesis/network identity hash: 32 bytes of `0x11`
-- BIP34 activation height: `0`
-- direct-candidate validation version: `2`
-- allowed commitment classes: `BIP141`
-- source hex: `0001001173796e7468657469632d7265677465737411111111111111111111111111111111111111111111111111111111111111110000000000000000000200010006424950313431`
-- SHA-256: `16e8587c49b21834ab025cc463ac576b9f4301428e9530303b6bdd779b7394c4`
+- production use: forbidden;
+- genesis/network identity hash: 32 bytes of `0x11`;
+- BIP34 activation height: `0`;
+- direct-candidate validation version: `2`;
+- allowed commitment classes: `BIP141`;
+- source hex: `0001001173796e7468657469632d7265677465737411111111111111111111111111111111111111111111111111111111111111110000000000000000000200010006424950313431`;
+- SHA-256: `16e8587c49b21834ab025cc463ac576b9f4301428e9530303b6bdd779b7394c4`.
+
+A production configuration that names `synthetic-regtest` is invalid even if its digest matches this registry.
 
 ## Commitment classes
 

@@ -1,0 +1,39 @@
+{
+  "format":"CoreDRP/1 Draft 0.6 current Mining admission conformance vectors",
+  "profile":"coredrp.mining",
+  "profile_version":[1,1],
+  "request_encoding_version":1,
+  "mining_share_request_v1":{
+    "block_height":840000,
+    "miner":"miner1",
+    "worker":"rigA",
+    "user_agent":"miner/1.0",
+    "difficulty":1.5,
+    "achieved_share_difficulty":2.0,
+    "actual_difficulty":1.5,
+    "network_difficulty":100000.0,
+    "source_ip":"192.0.2.1",
+    "source":"stratum",
+    "session_id":"sess-1",
+    "is_block_candidate":false,
+    "candidate_hash_hex":null,
+    "candidate_kind":null,
+    "transaction_confirmation_data":null,
+    "block_reward":null,
+    "canonical_request_hex":"000100000000000cd140000000066d696e6572310000000472696741000000096d696e65722f312e303ff800000000000040000000000000003ff800000000000040f86a0000000000000000093139322e302e322e31000000077374726174756d00000006736573732d310000000000"
+  },
+  "admission_digest":{
+    "lane":0,
+    "event_type":"0x0100",
+    "scope_hex":"62746331",
+    "canonical_request_hex":"000100000000000cd140000000066d696e6572310000000472696741000000096d696e65722f312e303ff800000000000040000000000000003ff800000000000040f86a0000000000000000093139322e302e322e31000000077374726174756d00000006736573732d310000000000",
+    "preimage_hex":"436f7265445250312d41444d495353494f4e00010000046274633100000070000100000000000cd140000000066d696e6572310000000472696741000000096d696e65722f312e303ff800000000000040000000000000003ff800000000000040f86a0000000000000000093139322e302e322e31000000077374726174756d00000006736573732d310000000000",
+    "sha256":"2241423636159c469650afd457da3471969b79c7a9999b0cd0fce50ad16189d5"
+  },
+  "negative_cases":[
+    {"case_kind":"scope_changes_digest","scope_hex":"646f676531"},
+    {"case_kind":"lane_changes_digest","lane":1},
+    {"case_kind":"candidate_presence_changes_request","is_block_candidate":true,"candidate_hash_hex":"01"}
+  ],
+  "metadata":{"status":"normative current conformance data","copyright":"Copyright © 2026 Rob Cooke","license":"Apache-2.0"}
+}
