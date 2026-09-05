@@ -1,10 +1,10 @@
 # CoreDRP Miningcore Profile 1.1 — Normative Semantics
 
-**Status:** Draft 0.6 freeze-completion normative registry  
+**Status:** Draft 0.6 profile-freeze normative registry  
 **Profile ID:** `coredrp.miningcore`  
 **Profile version:** 1.1  
 **Minimum Core:** 1.1  
-**Required Mining profile:** `coredrp.mining` 1.1 on the same scope
+**Required Mining profile:** `coredrp.mining` 1.1 on every projection scope
 
 This registry is incorporated by `CoreDRP-1-SPEC-0.6.md`. Reference tooling implements these rules but is lower authority.
 
@@ -16,7 +16,9 @@ For a non-empty Mining scope:
 - `0x0201 BitcoinDirectCoinbaseCandidate`: lane 1;
 - `0x0202 CandidateStateUpdate`: lane 1.
 
-Each requires both the exact selected Mining 1.1 and Miningcore 1.1 scope contracts in the epoch binding.
+Each requires the exact selected Mining 1.1 and Miningcore 1.1 scope contracts required by this registry.
+
+For `MiningcoreAccountingShareEvent`, each projection carries its own `scope`. The primary projection scope MUST equal the enclosing Core `Event.scope`. A paired auxiliary projection MUST use a different scope. Every projection scope independently requires exact Mining 1.1 and Miningcore 1.1 scope-contract selections in the epoch binding.
 
 ## 2. Frozen semantic-contract allocations
 
@@ -24,10 +26,10 @@ Unknown values MUST fail scope-contract negotiation with `SEMANTIC_CONTRACT_MISM
 
 | Field | Allowed value | Meaning |
 |---|---:|---|
-| `accounting_schema_version` | 1 | accounting projection validity in Section 3 |
-| `persistence_schema_version` | 1 | atomic PostgreSQL receiver/effect persistence in Section 10 |
-| `direct_candidate_validation_version` | 2 | Bitcoin validation in Sections 5 and 9 plus bound network policy |
-| `settlement_policy_version` | 1 | scheme matrix in Section 8 and `coredrp-v1-settlement-safety.md` |
+| `accounting_schema_version` | 2 | scoped accounting projection validity in Section 3 |
+| `persistence_schema_version` | 1 | atomic PostgreSQL receiver/effect persistence in Section 11 |
+| `direct_candidate_validation_version` | 2 | Bitcoin validation in Sections 6 and 10 plus bound network policy |
+| `settlement_policy_version` | 2 | scheme/policy/pruning/quarantine rules in Sections 8–9 and incorporated registries |
 
 All other values are unallocated for Miningcore Profile 1.1 and MUST be rejected.
 
@@ -41,15 +43,32 @@ Primary role MUST be `SINGLE` or `PARENT`; `UNSPECIFIED` and `AUXILIARY` are inv
 - `PARENT` requires `paired` present.
 - A present paired projection MUST have role `AUXILIARY`.
 
-Every projection MUST contain a MiningShareEvent valid under the Mining semantics registry and MUST set `preserve_created = true`.
+Every projection MUST:
 
-For PARENT/AUXILIARY pairs, miner, worker, session ID, and `created_unix_ms` MUST match exactly. Chain-specific height, difficulty and candidate fields MAY differ.
+- carry non-empty canonical Mining scope bytes;
+- contain a `MiningShareEvent` valid under the Mining semantics registry for that projection scope;
+- set `preserve_created = true`;
+- target a scope present in the epoch binding with exact Mining and Miningcore contracts.
 
-`accounting_id`, when present, MUST be non-empty. When both primary and paired accounting IDs are present they MUST differ.
+For a SINGLE projection, `primary.scope == enclosing Event.scope`.
 
-`reward_basis_satoshis`, when present, MUST be non-negative.
+For PARENT/AUXILIARY pairs:
 
-`pps_calculated_amount`, when present, MUST satisfy the exact Mining `Decimal38Scale24` grammar and requires a non-empty `accounting_id`.
+- `primary.scope == enclosing Event.scope`;
+- `paired.scope != primary.scope`;
+- both `accounting_id` fields are REQUIRED, non-empty, and MUST be byte-for-byte identical because they identify one accepted merged-mining proof projected to two chains;
+- worker, user agent, source IP, source/cluster source, session ID, `created_unix_ms`, and `achieved_share_difficulty` MUST match exactly;
+- miner MAY differ because the parent and auxiliary chains may use different payout addresses;
+- block height, assigned difficulty, actual difficulty, network difficulty, candidate fields, reward basis, and PPS liability MAY differ where chain-specific;
+- no third/nested projection is representable.
+
+This deliberately matches the Miningcore accounting model: one proof identity, distinct pools/scopes, chain-specific miner identity, and exact equality for the shared proof/session fields.
+
+`accounting_id`, when present on SINGLE, MUST be non-empty.
+
+`reward_basis_satoshis`, when present, MUST be strictly positive for identified ordinary accounting projections.
+
+`pps_calculated_amount`, when present, MUST satisfy the exact Mining `Decimal38Scale24` grammar, be strictly positive, and requires a non-empty `accounting_id`.
 
 `block_only = true` requires `block_record_emitted = true` and `statistical_record_emitted = false`. `statistical_record_emitted = true` requires `block_only = false`.
 
@@ -63,6 +82,7 @@ Post-parse limits:
 |---|---:|
 | direct recipients | 256 entries |
 | consensus commitment declarations | 64 entries |
+| projection scope | 64 ASCII bytes and Mining scope grammar |
 | address metadata | 128 UTF-8 bytes |
 | scriptPubKey | 10,000 bytes |
 | miner | 256 UTF-8 bytes |
@@ -76,7 +96,7 @@ Monetary satoshi values MUST reject negative values and arithmetic overflow.
 
 Bitcoin hashes in candidate messages are 32 bytes in canonical RPC/display byte order. `serialized_block` is exact consensus serialization. Script bytes are authoritative; optional address strings are display/audit metadata and MUST map back to the exact script on the network selected by the Mining contract.
 
-The serialized-block cap is 4,000,000 bytes or a stricter negotiated/profile cap.
+The serialized-block cap is the minimum of the Core hard cap, negotiated payload cap, and 4,000,000-byte Miningcore candidate cap.
 
 ## 6. Bitcoin direct-candidate validation
 
@@ -116,33 +136,44 @@ Allowed transitions:
 
 ## 8. Settlement and retention scheme matrix
 
-This section and `coredrp-v1-settlement-safety.md` are jointly normative. Mining `payout_scheme` selects exactly one row.
+This section, `coredrp-v1-settlement-safety.md`, and `coredrp-v1-settlement-scheme-policies.md` are jointly normative. Mining `payout_scheme` selects exactly one row and the Miningcore scope contract binds the exact scheme-policy digest.
 
 | Scheme | Settlement rule | Deletion/retention rule |
 |---|---|---|
-| PPLNS | requires `SettlementSafe` for the exact PPLNS window | prune no farther than `min(window_cutoff, SafePruneThrough)` and retain all evidence referenced by unsettled windows |
-| PPLNSBF | requires `SettlementSafe` for the exact PPLNSBF window/factor dependency set | prune no farther than `min(window_cutoff, SafePruneThrough)` |
-| PROP | requires `SettlementSafe` from round start through settlement boundary | prune no farther than `min(round_cutoff, SafePruneThrough)` |
-| PPS | payout is not remote-completeness fence gated; each accepted share must already have durable accounting/idempotency effect | share/application rows may be deleted only after accounting is durable, retry/idempotency dependency is retired, and shared evidence is permitted by SafePruneThrough |
-| CUSTODIAL_SOLO | payout is not remote-completeness fence gated | winning share and block/settlement evidence retained through settlement finality and SafePruneThrough; non-winning shares may follow configured retention only when no evidence dependency remains |
-| DIRECT_SOLO | consensus submission is never recorder/completeness gated | exact candidate/submission/settlement evidence retained through local finality and SafePruneThrough; `submitblock` never waits on recorder state |
+| PPLNS | requires `SettlementSafe` for the exact window derived from bound `factor` | use settlement-specific prune safety in the settlement registry; retain all evidence referenced by live/unsettled windows |
+| PPLNSBF | requires `SettlementSafe` for the exact window derived from bound `factor` and block-finder percentage | use settlement-specific prune safety; retain all evidence referenced by live/unsettled windows |
+| PROP | requires `SettlementSafe` from round start through settlement boundary | use settlement-specific prune safety |
+| PPS | payout is not remote-completeness fence gated; each accepted share must already have durable accounting/idempotency effect | delete only after accounting is durable, retry/idempotency dependency is retired, and no live proof/audit dependency remains |
+| CUSTODIAL_SOLO | payout is not remote-completeness fence gated | winning share and block/settlement evidence retained through settlement finality; non-winning shares may follow configured retention when no evidence dependency remains |
+| DIRECT_SOLO | consensus submission is never recorder/completeness gated | exact candidate/submission/settlement evidence retained through local finality; `submitblock` never waits on recorder state |
 
 A `SETTLE_WITHOUT_FENCE_OVERRIDE` may permit one named settlement but does not turn the settlement into `SettlementSafe`, does not advance `PayoutSafeThrough`, and does not relax evidence retention for audit.
 
-## 9. Network validation policy binding
+## 9. Payout-significant quarantine
 
-Miningcore Profile 1.1 uses `direct_candidate_validation_version = 2` and a required 32-byte `bitcoin_network_policy_digest` in its semantic contract. The digest is recomputed from the canonical network-policy grammar in `coredrp-v1-bitcoin-network-policies.md` using the `network_id` selected by the Mining contract.
+A quarantined event is payout-significant when it is a lane-0 Mining share or Miningcore accounting event, or when an incorporated settlement registry marks its effect as a dependency of an unsettled financial result.
 
-Two receivers MUST NOT select the same Miningcore scope-contract digest while using different BIP34 activation heights, genesis/network identities, direct-candidate validation versions, or allowed consensus commitment classes.
+Payout-significant quarantine has the same safety lifecycle as a completeness gap:
 
-The `synthetic-regtest` network policy in the conformance registry is test-only and MUST NOT be selected by a production Mining scope.
+- `UNRESOLVED`: event is durably quarantined/ACKed but its ordinary financial effect is absent; every intersecting `SettlementSafe` decision is false and the contiguous frontier is capped at the earliest affected point;
+- `RESOLVED_RECONCILED`: a versioned validator/profile correction or verified reconciliation has produced the required durable financial effect without changing immutable Core history; the affected settlement may be re-evaluated;
+- `RESOLVED_WAIVED`: operator accepts missing financial effect for audit/operations; it never becomes `SettlementSafe`, never advances `PayoutSafeThrough`, and does not authorize destructive deletion of its audit record.
 
-## 10. Direct submission independence
+`QUARANTINE_AND_ADVANCE` by itself creates/retains `UNRESOLVED` financial uncertainty. It MUST NOT manufacture completeness or settlement safety.
+
+## 10. Network and settlement policy binding
+
+Miningcore Profile 1.1 uses `direct_candidate_validation_version = 2` and requires both:
+
+- `bitcoin_network_policy_digest32`, recomputed from `coredrp-v1-bitcoin-network-policies.md` using the Mining-selected `network_id`;
+- `settlement_scheme_policy_digest32`, recomputed from `coredrp-v1-settlement-scheme-policies.md` using the Mining-selected `payout_scheme` and effective Miningcore payout configuration.
+
+Two receivers MUST NOT select the same Miningcore scope-contract digest while using different Bitcoin validation policy or different settlement-window/configuration parameters.
+
+The `synthetic-regtest` network policy is test-only and MUST NOT be selected by a production Mining scope.
+
+## 11. Direct submission independence and PostgreSQL atomicity
 
 The submitting edge persists exact candidate/settlement evidence locally before invoking `submitblock`. Recorder, critical-lane, clock, completeness, or payout-fence failure MUST NOT delay local consensus submission.
 
-## 11. PostgreSQL effect atomicity
-
-For a received batch, state-dependent profile validation, referential checks, application effects, candidate/accounting records, receiver stream head and checkpoint evidence commit in the same durable transaction. A semantic failure rolls back the entire current batch and emits no ACK.
-
-The exact durable settlement proof, override, gap/policy reconciliation and pruning effects required by this profile are written in the same transaction domain as the Miningcore accounting state they authorize.
+For a received batch, state-dependent profile validation, referential checks, application effects, candidate/accounting records, receiver stream head, checkpoint evidence, quarantine/gap state, and financial proof dependencies commit in the same durable transaction. A semantic failure rolls back the entire current batch and emits no ACK.
