@@ -6,21 +6,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 tools/check_spec_integrity.py
+      - name: Validate canonical specification
+        run: python3 tools/check_spec_integrity.py
+      - name: Validate normative registries
+        run: python3 tools/check_registry_integrity.py
       - run: python3 tools/check_layer_boundaries.py
       - run: python3 tools/check_error_registry.py
       - run: python3 tools/check_event_registry.py
       - run: python3 tools/check_metrics_registry.py
-      - run: python3 tools/check_wire_compatibility.py
-      - run: python3 tools/verify_test_vectors.py
-      - run: python3 tools/verify_draft05_vectors.py
-      - run: python3 tools/verify_draft06_vectors.py
-      - run: python3 tools/verify_state_vectors.py
+      - name: Verify reviewed protobuf byte fingerprints
+        run: python3 tools/check_wire_compatibility.py
+      - name: Verify current Core hash-chain vectors
+        run: python3 tools/verify_core_hash_vectors.py
+      - name: Verify current Mining admission vectors
+        run: python3 tools/verify_admission_vectors.py
+      - name: Verify current Draft 0.6 freeze vectors
+        run: python3 tools/verify_draft06_vectors.py
+      - name: Verify current state-machine vectors
+        run: python3 tools/verify_state_vectors.py
       - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler && python3 -m pip install protobuf
       - run: mkdir -p .build && protoc -I . --descriptor_set_out=.build/coredrp.pb --include_imports --include_source_info protocol/coredrp-v1.proto profiles/mining/coredrp-mining-v1.proto profiles/miningcore/coredrp-miningcore-v1.proto
-      - run: python3 tools/verify_profile_vectors.py
+      - name: Verify Mining/Miningcore/Bitcoin semantic vectors
+        run: python3 tools/verify_profile_vectors.py
       - uses: bufbuild/buf-setup-action@v1
       - run: buf lint
+      - name: Reject protobuf wire/source breaking changes against main
+        run: buf breaking --against 'https://github.com/NINJAK1DD/CoreDRP.git#branch=main'
       - uses: actions/setup-dotnet@v4
         with: { dotnet-version: '10.0.x' }
       - run: dotnet run --project tools/csharp-vector-check/CoreDRP.VectorCheck.csproj --configuration Release
@@ -32,8 +43,8 @@ jobs:
       - name: Prove realistic TLA+ mutations are detected
         run: |
           python3 tools/mutate_tla.py
-          declare -A expected=( [prune]=PruneSafe [ack]=AckSafe [drain]=NormalTransitionDrained [payout]=PayoutEvidenceSafe [exceptional_gap]=ExceptionalTransitionCovered )
-          for m in prune ack drain payout exceptional_gap; do
+          declare -A expected=( [prune]=PruneSafe [ack]=AckSafe [drain]=NormalTransitionDrained [payout]=PayoutEvidenceSafe [exceptional_gap]=ExceptionalTransitionCovered [epoch_policy]=EpochProofResetSafe )
+          for m in prune ack drain payout exceptional_gap epoch_policy; do
             set +e
             java -XX:+UseParallelGC -jar .build/tla2tools.jar -config model/CoreDRP.cfg .build/mutations/$m/CoreDRP.tla > .build/tla-$m.log 2>&1
             rc=$?
