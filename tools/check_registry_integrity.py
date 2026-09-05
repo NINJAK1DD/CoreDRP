@@ -45,7 +45,8 @@ if wp.exists():
  try:w=json.loads(wp.read_text())
  except Exception as e:print('invalid structural wire baseline:',e,file=sys.stderr);failed=True
  else:
-  if w.get('PENDING') is not True and w.get('format')!='CoreDRP protobuf structural baseline v1':print('unexpected structural wire baseline format',file=sys.stderr);failed=True
+  if w.get('PENDING') is True:print('structural wire baseline must never remain PENDING',file=sys.stderr);failed=True
+  elif w.get('format')!='CoreDRP protobuf structural baseline v1':print('unexpected structural wire baseline format',file=sys.stderr);failed=True
 p=R/'docs/CoreDRP-1-SPEC.md';t=p.read_text(encoding='utf-8')
 if 'CoreDRP-1-SPEC-0.6.md' not in t or len(t.encode())>4096 or '## 33. PayoutSafe' in t:
  print('unversioned spec must remain a small pointer to canonical versioned spec',file=sys.stderr);failed=True
