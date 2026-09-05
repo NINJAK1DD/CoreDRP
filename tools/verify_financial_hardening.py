@@ -123,4 +123,51 @@ for key,value in [('amount','12.6'),('miner','other'),('sequence',43),('payload_
 rejects(participant_digest,s,sources+[dict(sources[0],amount='1')])
 for key,value in [('lane',1),('event_type',513),('sequence',0),('identity','00'*16),('amount','1.0')]:
     rejects(effect_bytes,s,dict(sources[0],**{key:value}))
+# Mixed-case spellings decode to the same UUID and must not double count.
+upper=dict(sources[0],identity=sources[0]['identity'].upper())
+assert upper['identity']!=sources[0]['identity']
+assert effect_bytes(s,upper)==effect_bytes(s,sources[0])
+assert participant_digest(s,[upper])==participant_digest(s,[sources[0]])
+rejects(participant_digest,s,[sources[0],upper])
+rejects(participant_digest,s,[sources[0],dict(upper,amount='1')])
+
+# Offline no-relay nonmember: issuance before preparation makes it a required holder.
+receiver={'mode':'NO_RELAY_REQUIRED','holders':set(),'holder_skews':{},'pending':None}
+issue_no_relay(receiver,'offline',3000)
+prepare_required(receiver,['member'],11002,3,'digest3')
+assert receiver['pending']['required']=={'offline','member'}
+assert 2*max(receiver['holder_skews'].values())==6000
+rejects(issue_no_relay,receiver,'late',2000)
+assert 'late' not in receiver['holders']
+acknowledge_required(receiver,'member',(3,'digest3'))
+rejects(commit_required,receiver)
+assert receiver['mode']=='NO_RELAY_REQUIRED'
+rejects(acknowledge_required,receiver,'offline',(2,'old-digest'))
+# Sender reconnects, persists cap, acknowledges, then loses activation notice.
+offline={'policies':{'aux':dict(p,mode='NO_RELAY_REQUIRED',member=False,until=20000)},'wal':[],'outcomes':{}}
+ack=stage_withdrawal(offline,'aux',receiver['pending'])
+acknowledge_required(receiver,'offline',ack)
+commit_required(receiver)
+offline=copy.deepcopy(offline)  # restart restores the persisted cap
+assert admit(offline,'before',['aux'],11001)==1
+before=copy.deepcopy(offline)
+rejects(admit,offline,'at-boundary',['aux'],11002)
+assert offline==before
+# Replaying a prior success remains idempotent, without a second WAL admission.
+assert admit(offline,'before',['aux'],11002)==1 and len(offline['wal'])==1
+# Aborted activation / older staging cannot reopen the capped evidence.
+stage_withdrawal(offline,'aux',{'effective':12000,'generation':4,'digest':'later'})
+assert (3,11002) in offline['admission_caps']['aux']
+rejects(admit,offline,'after-abort',['aux'],12000)
+# Activated generation 3 permits members up to generation 4's later cap.
+offline['policies']['aux'].update(generation=3,mode='RELAY_REQUIRED',member=True)
+assert admit(offline,'new-member',['aux'],11002)==2
+rejects(admit,offline,'later-cap',['aux'],12000)
+# Final holder-set recheck catches a concurrent/inconsistent issuance ledger.
+r={'mode':'NO_RELAY_REQUIRED','holders':set(),'holder_skews':{},'pending':None}
+prepare_required(r,['member'],11002,3,'digest3');acknowledge_required(r,'member',(3,'digest3'))
+r['holders'].add('unexpected')
+rejects(commit_required,r)
+rejects(activate_required,['member'],11002,1000,6000,['member'],['offline'])
+assert activate_required(['member'],11002,1000,6000,['member','offline'],['offline'])['mode']=='RELAY_REQUIRED'
 print('CoreDRP settlement-policy-v4 financial hardening: OK')

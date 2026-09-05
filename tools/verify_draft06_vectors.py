@@ -83,7 +83,7 @@ for x in D['staging_sender_cases']:
  k=x['case_kind']
  if k in ('membership_start','membership_end'):got=[x['sender']]
  elif k=='mode_required_to_none':got=sorted(x['members_t_minus_1'])
- elif k=='mode_none_to_required':got=sorted(x['members_t']) if x['members_t'] else 'ADMIN_ACTION_CONFLICT'
+ elif k=='mode_none_to_required':got=sorted(set(x['members_t'])|set(x.get('admission_policy_holders',[]))) if x['members_t'] else 'ADMIN_ACTION_CONFLICT'
  else:raise AssertionError(x)
  assert got==x['expected'],x
 

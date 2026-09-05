@@ -98,6 +98,8 @@ def admit(state, request, scopes, time):
         p = state['policies'].get(q)
         if not p or not p['activated'] or not p['authorized'] or not p['contract']:
             raise ValueError('missing admission evidence')
+        for generation,boundary in state.get('admission_caps',{}).get(q,[]):
+            if p.get('generation',0)<generation and time>=boundary: raise ValueError('staged permission withdrawn')
         if not p['from'] <= time < p['until']: raise ValueError('policy coverage')
         if p['mode'] not in ('RELAY_REQUIRED','NO_RELAY_REQUIRED'): raise ValueError('unknown policy')
         if p['mode']=='RELAY_REQUIRED' and not p['member']: raise ValueError('membership')
@@ -135,7 +137,7 @@ def participant_bytes(s,x):
             lp(x['amount'].encode('ascii'))+hashlib.sha256(effect_bytes(s,x)).digest())
 
 def participant_digest(s,effects):
-    if len({(x['kind'],x['identity']) for x in effects}) != len(effects): raise ValueError('duplicate participant')
+    if len({(x['kind'],bytes.fromhex(x['identity'])) for x in effects}) != len(effects): raise ValueError('duplicate participant')
     records=sorted(participant_bytes(s,x) for x in effects)
     return hashlib.sha256(struct.pack('>HI',1,len(records))+b''.join(struct.pack('>I',len(r))+r for r in records)).hexdigest()
 
@@ -171,7 +173,38 @@ def projection_pps(p, policy):
                  eligible_network=policy.get('eligible_network',False))
 
 
-def activate_required(members, effective, frontier, uncertainty, staged):
-    if not members or set(members)!=set(staged) or effective<=frontier+uncertainty:
+def activate_required(members, effective, frontier, uncertainty, staged, holders=()):
+    if not members or set(members)|set(holders)!=set(staged) or effective<=frontier+uncertainty:
         raise ValueError('unsafe required-mode activation')
     return {'mode':'RELAY_REQUIRED','members':sorted(members),'effective':effective}
+
+
+# Reference transactional policy distribution model. Callers serialize mutations.
+def issue_no_relay(receiver, sender, skew):
+    if receiver.get('pending') is not None or receiver['mode']!='NO_RELAY_REQUIRED':
+        raise ValueError('policy issuance unavailable')
+    receiver['holders'].add(sender)  # persisted BEFORE response, even if response is lost
+    receiver['holder_skews'][sender]=max(skew,receiver['holder_skews'].get(sender,0))
+
+def prepare_required(receiver, members, effective, generation, digest):
+    if receiver.get('pending') is not None or not members: raise ValueError('transition conflict')
+    receiver['pending']={'required':set(members)|receiver['holders'],'members':set(members),
+                         'effective':effective,'generation':generation,'digest':digest,'acks':set()}
+
+def stage_withdrawal(sender, scope, pending):
+    caps=sender.setdefault('admission_caps',{})
+    cap=(pending['generation'],pending['effective'])
+    if cap not in caps.setdefault(scope,[]): caps[scope].append(cap)
+    return (pending['generation'],pending['digest'])
+
+def acknowledge_required(receiver, sender, ack):
+    p=receiver['pending']
+    if sender not in p['required'] or ack!=(p['generation'],p['digest']): raise ValueError('staging mismatch')
+    p['acks'].add(sender)
+
+def commit_required(receiver):
+    p=receiver['pending']
+    if p['required']!=p['members']|receiver['holders'] or p['acks']!=p['required']:
+        raise ValueError('missing holder acknowledgement')
+    receiver['mode']='RELAY_REQUIRED'
+    receiver['pending']=None

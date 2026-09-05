@@ -42,3 +42,8 @@ Core 1.1 protobuf files, field numbers, hash domains and Core cryptographic corp
 This repository is a specification and conformance suite, not a production Miningcore relay implementation. The normative integration changes and runnable algorithm/reference validators are implemented here. Production Miningcore SQL/payout handler changes belong to its integration work: do not reuse ReadSharesBeforeAsync, host-decimal cutoff calculation, live-config PPS validation or aliasing PoolId lookups unchanged. No production service or Miningcore repository is modified by this PR.
 
 The reference suite covers the listed boundary and mutation cases. CI also runs the existing parsed protobuf, structural wire/Buf, independent .NET, TLA+ safety and realistic mutation gates. Passing conformance is not a claim that a deployed crash-safe relay or payout implementation has been tested.
+
+## PR #11 follow-up review
+
+- P1 stale no-relay policy: RequiredStagingSender now includes the durable lifetime AdmissionPolicyHolders set. Issuance is logged before delivery and serialized with transition preparation/activation. Offline holders block activation until exact staging acknowledgement; sender-side caps precede ACK and survive lost activation notices, restart and abort. Recorded scope skew covers nonmember holders without post-transition active clock scopes. Stateful conformance exercises stale/offline evidence, concurrent issuance, exact boundary, wrong ACK, restart, new activated member evidence and holder-set recheck.
+- P2 duplicate effect UUID casing: participant duplicate keys use decoded UUID bytes. Regressions reject upper/lowercase duplicates, including different amounts, while a single uppercase spelling reconstructs the same bytes/digest.

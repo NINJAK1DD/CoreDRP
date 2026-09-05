@@ -42,20 +42,24 @@ Define `RequiredStagingSender(Q, change, T)` from durable policy state immediate
 - `MEMBERSHIP_START(Q,S,T)`: exactly `{S}`;
 - `MEMBERSHIP_END(Q,S,T)`: exactly `{S}`;
 - `COMPLETENESS_MODE_CHANGE(Q, RELAY_REQUIRED -> NO_RELAY_REQUIRED, T)`: every sender whose membership interval for `Q` contains `T-1`;
-- `COMPLETENESS_MODE_CHANGE(Q, NO_RELAY_REQUIRED -> RELAY_REQUIRED, T)`: every sender whose membership interval for `Q` contains `T` under the new generation;
+- `COMPLETENESS_MODE_CHANGE(Q, NO_RELAY_REQUIRED -> RELAY_REQUIRED, T)`: the union of every sender whose membership interval for `Q` contains `T` under the new generation and `AdmissionPolicyHolders(Q)`;
 - a mode change where old mode equals new mode is invalid/no-op and MUST NOT create a generation.
 
-The set is derived from durable temporal membership, not connection state, certificate transport authorization, currently active streams, or operator-supplied arbitrary lists.
+`AdmissionPolicyHolders(Q)` is the durable set of sender UUIDs to which the receiver has ever issued authenticated `NO_RELAY_REQUIRED` admission evidence for `Q`. Before sending such evidence, the receiver MUST atomically record the holder, exact scope-contract digest and its bound permitted skew. A delivery whose outcome is uncertain still counts as issued. This set is retained for the scope lifetime; disconnect, certificate expiry/revocation, membership absence and process restart do not remove a holder. Missing historical issuance records fail activation closed rather than treating the holder set as empty.
+
+The required set is derived from durable membership and this issuance ledger, never from current connections or an arbitrary operator list. An offline nonmember holding no-relay evidence MUST acknowledge the transition; inability to obtain that acknowledgement blocks ordinary activation. This is an intentional availability tradeoff to protect immutable WAL history.
 
 For any ordinary change:
 
 1. construct the exact generation and effective time;
 2. stage the identical generation on every sender in `RequiredStagingSender`;
-3. each sender records `(scope,generation,effective_unix_ms,policy_digest32)` and returns authenticated staging acknowledgement;
+3. each sender records `(scope,generation,effective_unix_ms,policy_digest32)` and, before returning authenticated staging acknowledgement, durably caps all superseded no-relay admission evidence at the exclusive boundary `T`; this cap serializes with local admission and survives crash/restart;
 4. receiver recomputes `RequiredStagingSender`, records it, and verifies every required acknowledgement matches the exact digest;
 5. only then may receiver activate the policy generation.
 
-A missing/mismatched acknowledgement is `ADMIN_ACTION_CONFLICT`; old policy remains active.
+A missing/mismatched acknowledgement is `ADMIN_ACTION_CONFLICT`; old receiver policy remains active. An acknowledged sender's cap nevertheless remains in force, including if activation fails or its activation notice is lost. At/after `T`, that sender MUST stop admission unless it holds newly activated evidence and, for `RELAY_REQUIRED`, membership. Staging restricts old permission but never grants new permission. A cap cannot be removed by timeout, restart or receipt of an older generation; restoring permission requires a newly staged and activated generation.
+
+Evidence issuance, transition preparation and final activation MUST serialize under the same scope policy/issuance-ledger lock or an equivalent version-checked transaction. Once a required-mode transition is prepared, no new no-relay evidence may be issued until it has activated or been explicitly aborted. Final activation rechecks the holder-set version and all exact generation/digest acknowledgements under that lock. Concurrent issuance before preparation adds a required holder; issuance after preparation fails locally. Aborting does not remove caps already acknowledged by senders. These rules prevent a late evidence recipient from escaping the staged set.
 
 At/after membership end, the sender stops new payout-relevant admission for that scope before returning local success. A sender entering RELAY_REQUIRED begins admission/checkpoint obligations at the same effective boundary.
 
@@ -105,7 +109,8 @@ For proposed change `(Q,change,T)`, let `R = RequiredStagingSender(Q,change,T)`.
 
 For each `S in R`, define `SkewTransition(S,Q,change,T)`:
 
-- **activation/addition** (`MEMBERSHIP_START` or `NO_RELAY_REQUIRED -> RELAY_REQUIRED`): use the effective multi-scope permitted skew after applying the proposed scope-set/policy change;
+- **activation/addition** (`MEMBERSHIP_START` or a new member in `NO_RELAY_REQUIRED -> RELAY_REQUIRED`): use the effective multi-scope permitted skew after applying the proposed scope-set/policy change;
+- **no-relay evidence holder** in `NO_RELAY_REQUIRED -> RELAY_REQUIRED`: also include the maximum bound permitted skew from that sender's issued scope contracts in the issuance ledger. Take the maximum of this and any defined pre/post-change effective skew. For a nonmember with no post-change clock-governed scope, the recorded contract skew is sufficient; do not invent a local default or omit this holder from the `2S` margin;
 - **deactivation/removal** (`MEMBERSHIP_END` or `RELAY_REQUIRED -> NO_RELAY_REQUIRED`): use the effective multi-scope permitted skew immediately before `T` while `Q` is still active/required. If a post-change effective skew also exists, use `max(pre_change_skew, post_change_skew)`; the value MUST never become undefined merely because `Q` was the sender's last active clock-governed scope;
 - bootstrap with `R` empty: no skew value is required.
 
