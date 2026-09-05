@@ -33,7 +33,7 @@ def value(kind,x):
         if type(x) is not bool:raise ValueError('boolean')
         return bytes([x])
     if kind=='f64':
-        if not math.isfinite(x) or x<0:raise ValueError('difficulty')
+        if type(x) is not float or not math.isfinite(x) or x<=0:raise ValueError('difficulty must be a positive finite double')
         return struct.pack('>d',x)
     if kind in ('uuid16','hash32','bytes'):
         b=bytes.fromhex(x)

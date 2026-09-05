@@ -3,6 +3,7 @@ using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 
 // Independent typed reconstruction; golden preimages are compared, never trusted as inputs.
 internal static class EncodingChecks
@@ -35,7 +36,10 @@ internal static class EncodingChecks
         if(type=="u8"||type=="u16"||type=="u32"||type=="u64")return Num(v.GetUInt64(),int.Parse(type[1..])/8);
         if(type=="bool")return new byte[]{v.GetBoolean()?(byte)1:(byte)0};
         if(type=="f64"){
-            double d=v.GetDouble();if(!double.IsFinite(d)||d<0)throw new Exception("float");
+            // Preserve the typed Python fixture distinction: JSON integer tokens are
+            // not double inputs. A decimal point or exponent denotes a float token.
+            if(v.ValueKind!=JsonValueKind.Number||!v.GetRawText().Any(c=>c=='.'||c=='e'||c=='E'))throw new Exception("double type");
+            double d=v.GetDouble();if(!double.IsFinite(d)||d<=0)throw new Exception("positive finite double");
             var b=new byte[8];BinaryPrimitives.WriteInt64BigEndian(b,BitConverter.DoubleToInt64Bits(d));return b;
         }
         if(type=="bytes"||type=="uuid16"||type=="hash32"){
@@ -93,6 +97,21 @@ internal static class EncodingChecks
             var q=Utf8.GetBytes(c.GetProperty("scope").GetString()!);
             var p=Cat(Utf8.GetBytes("CoreDRP1-ADMISSION"),Num(c.GetProperty("lane").GetUInt64(),1),Num(c.GetProperty("event_type").GetUInt64(),2),Num((ulong)q.Length,2),q,Lp(b));
             Check(p,c,"preimage_hex");Check(SHA256.HashData(p),c,"sha256");
+        }
+        foreach(var c in d.GetProperty("requests").EnumerateArray().Where(x=>x.GetProperty("event_type").GetInt32()==512))
+        foreach(string projection in new[]{"primary","paired"}){
+            if(c.GetProperty("request").GetProperty(projection).ValueKind==JsonValueKind.Null)continue;
+            foreach(string field in new[]{"difficulty","achieved_share_difficulty","actual_difficulty","network_difficulty"})
+            foreach(string raw in new[]{"true","false","1","0","-1","0.0","-0.0","-1.0","1e400","-1e400","null","\"1.0\""}){
+                var request=JsonNode.Parse(c.GetProperty("request").GetRawText())!;
+                request[projection]!["share"]![field]=JsonNode.Parse(raw);
+                using var invalid=JsonDocument.Parse(request.ToJsonString());
+                Reject(()=>Encode(s,c.GetProperty("kind").GetString()!,invalid.RootElement));
+            }
+        }
+        // Integral-valued doubles and the minimum positive subnormal remain valid.
+        foreach(string raw in new[]{"1.0","1e0","5e-324"}){
+            using var valid=JsonDocument.Parse(raw);Value(s,"f64",valid.RootElement);
         }
         foreach(var c in d.GetProperty("admin").EnumerateArray()){
             int a=c.GetProperty("action").GetInt32();var b=Admin(s,a,c.GetProperty("fields"));ValidateAdmin(a,b);Check(b,c,"canonical_body_hex");

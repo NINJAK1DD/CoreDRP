@@ -23,6 +23,16 @@ for c in D['requests']:
     rejects(encode,c['kind'],dict(c['request'],created_unix_ms=1234))
     # Every caller field binds identity, including absent/present-empty metadata.
     if c['event_type']==512:
+        for projection in ('primary','paired'):
+            if c['request'][projection] is None:continue
+            for field in ('difficulty','achieved_share_difficulty','actual_difficulty','network_difficulty'):
+                for invalid in (True,False,1,0,-1,0.0,-0.0,-1.0,float('nan'),float('inf'),float('-inf'),None,'1.0'):
+                    x=copy.deepcopy(c['request']);x[projection]['share'][field]=invalid
+                    rejects(encode,c['kind'],x)
+                    rejects(admission,c['lane'],c['event_type'],c['scope'],c['kind'],x)
+                for valid in (1.0,float.fromhex('0x0.0000000000001p-1022')):
+                    x=copy.deepcopy(c['request']);x[projection]['share'][field]=valid
+                    admission(c['lane'],c['event_type'],c['scope'],c['kind'],x)
         for key,v in [('reward_basis_satoshis',1001),('scope',b'other'.hex()),('accounting_id','ff'*16),('pps_calculated_amount','0.1')]:
             x=copy.deepcopy(c['request']);x['primary'][key]=v
             assert encode(c['kind'],x)!=r
