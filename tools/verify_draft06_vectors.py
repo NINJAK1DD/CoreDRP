@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
 from pathlib import Path
-import hashlib,json,struct
+import hashlib,json,struct,re
 from verify_policy_clock_vectors import verify as verify_policy_clock
 R=Path(__file__).resolve().parents[1]
 D=json.loads((R/'docs/coredrp-v1-draft06-vectors.json').read_text())
 H=lambda b:hashlib.sha256(b).digest();u16=lambda n:struct.pack('>H',n);u32=lambda n:struct.pack('>I',n)
 def lp16(b):return u16(len(b))+b
+DEC_RE=re.compile(r'(?:0|[1-9][0-9]{0,13})(?:\.[0-9]{0,23}[1-9])?\Z')
+def canonical_decimal(s):
+ return bool(DEC_RE.fullmatch(s)) and len(s.replace('.',''))<=38
 
 # Normative registries must be incorporated.
 contracts=(R/'docs/coredrp-v1-draft06-contracts.md').read_text()
-for reg in ('coredrp-v1-clock-state.md','coredrp-v1-temporal-policy.md','coredrp-v1-settlement-safety.md','coredrp-v1-settlement-scheme-policies.md','coredrp-v1-producer-lifecycle.md','coredrp-v1-profile-transitions.md','coredrp-v1-quarantine-safety.md'):
+for reg in ('coredrp-v1-clock-state.md','coredrp-v1-temporal-policy.md','coredrp-v1-settlement-safety.md','coredrp-v1-settlement-scheme-policies.md','coredrp-v1-share-difficulty-adjustment-policies.md','coredrp-v1-producer-lifecycle.md','coredrp-v1-profile-transitions.md','coredrp-v1-quarantine-safety.md'):
  assert reg in contracts,reg
 
 # Compatibility.
@@ -22,10 +25,21 @@ for x in D['compatibility_cases']:
  else:raise AssertionError(x)
  assert got==x['expected'],x
 
-# Published digests.
-for group in ('semantic_contracts','network_policies','settlement_policies'):
+# Published digests, including resolved settlement and difficulty-adjustment policies.
+for group in ('semantic_contracts','network_policies','adjustment_policies','settlement_policies'):
  for name,obj in D[group].items():
   assert H(bytes.fromhex(obj['source_hex'])).hex()==obj['sha256'],(group,name)
+
+# Settlement decimal canonicalization and PPLNSBF bound.
+for s in D['settlement_policy_invalid_decimals']:
+ if s=='100':
+  assert canonical_decimal(s) and not (0 <= float(s) < 100)
+ else:
+  assert not canonical_decimal(s),s
+
+# PPLNSBF canonical source must sort block_finder_percentage before factor.
+pbf=bytes.fromhex(D['settlement_policies']['pplnsbf_factor_2_blockfinder_5_identity']['source_hex'])
+assert pbf.find(b'block_finder_percentage') < pbf.find(b'factor')
 
 # Structured epoch binding reconstruction.
 c=D['contract_binding'];profiles=[]
@@ -53,8 +67,7 @@ for x in D['idempotency_generation_cases']:
  else:raise AssertionError(x)
  assert got==x['expected'],x
 
-# Deterministic clock classification families remain in the general corpus,
-# while the full stateful lifecycle corpus is executed below.
+# Deterministic clock classification families.
 for x in D['clock_state_cases']:
  state,reason=x['state'],x['reason']
  if reason=='SENDER_PROCESSING_LIMIT' and x.get('processing_exceeded'):
@@ -74,27 +87,49 @@ for x in D['staging_sender_cases']:
  else:raise AssertionError(x)
  assert got==x['expected'],x
 
-# applicable_clock_uncertainty = 2*max effective skew.
+# Applicable clock uncertainty general and deactivation edge.
 for x in D['clock_uncertainty_cases']:
  got=0 if not x['effective_skews_ms'] else 2*max(x['effective_skews_ms'])
  assert got==x['expected_ms'],x
+for x in D['clock_deactivation_cases']:
+ post=x['post_change_skew_ms'];trans=x['pre_change_skew_ms'] if post is None else max(x['pre_change_skew_ms'],post)
+ assert trans==x['expected_transition_skew_ms'] and 2*trans==x['expected_uncertainty_ms'],x
 
-# Settlement-specific pruning.
-for x in D['settlement_prune_cases']:
- got=bool(x['all_settlements_final'] and not x['intersects_unsafe_audit'] and not x['live_dependencies'] and x['proof_summarized'] and x['scheme_allows'])
+# Independent authorization and temporal membership for embedded projection scopes.
+for x in D['projection_scope_access_cases']:
+ if not x['authorized']:got='UNAUTHORIZED_SCOPE'
+ elif x['mode']=='RELAY_REQUIRED' and not x['member']:got='TEMPORAL_MEMBERSHIP_REQUIRED'
+ else:got='ACCEPT'
  assert got==x['expected'],x
 
-# Financial quarantine lifecycle.
+# Settlement-specific pruning requires versioned summary and no live/unsafe dependency.
+for x in D['settlement_prune_cases']:
+ got=bool(x['all_settlements_final'] and not x['intersects_unsafe_audit'] and not x['live_dependencies'] and x['summary_v1'] and x['scheme_allows'])
+ assert got==x['expected'],x
+
+# Financial quarantine lifecycle and canonical transition legality.
 for x in D['quarantine_cases']:
  payout_significant=x['event_type'] in (0x0100,0x0200)
  got=bool(payout_significant and x['state']=='RESOLVED_RECONCILED')
  assert got==x['expected_settlement_safe'],x
+for x in D['quarantine_transition_cases']:
+ k=x['case_kind']
+ if k.startswith('reconcile_'):
+  valid=x['old_state']=='UNRESOLVED' and x['identity_match'] and x['authority_valid'] and x['effect_digest_match'] and x['effects_atomic']
+  got='RESOLVED_RECONCILED' if valid else 'ADMIN_ACTION_CONFLICT'
+ elif k.startswith('waive_'):
+  valid=x['old_state']=='UNRESOLVED' and x['identity_match'];got='RESOLVED_WAIVED' if valid else 'ADMIN_ACTION_CONFLICT'
+ else:raise AssertionError(x)
+ assert got==x['expected'],x
 
 # Financial semantic-contract transition barrier.
 for x in D['profile_transition_cases']:
  changed=x['old_mining']!=x['new_mining'] or x['old_mc']!=x['new_mc']
  got='ALLOW' if not changed or x['old_state_closed'] else 'ADMIN_ACTION_CONFLICT'
  assert got==x['expected'],x
+for x in D['migration_closure_cases']:
+ live=any(x[k] for k in ('live_window','pps_liability','candidate_live','unsafe_range','override_live','import_in_progress','producer_open','summary_missing','effect_mutable'))
+ assert (not live)==x['expected'],x
 
 # Temporal reconciliation cross-field constraints.
 for x in D['temporal_reconciliation_cases']:
@@ -103,9 +138,5 @@ for x in D['temporal_reconciliation_cases']:
  got='ACCEPT' if valid else 'ADMIN_ACTION_CONFLICT'
  assert got==x['expected'],x
 
-# Execute the dedicated current stateful clock/bootstrap corpus as part of this
-# Draft 0.6 gate so regressions in generation, lifetime, grace or recovery cannot
-# be hidden by the compact classification cases above.
 verify_policy_clock()
-
-print('CoreDRP Draft 0.6 profile-freeze vectors: OK')
+print('CoreDRP Draft 0.6 final Profile 1.1 freeze vectors: OK')
