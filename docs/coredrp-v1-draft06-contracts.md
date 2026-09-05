@@ -10,6 +10,7 @@ It incorporates these subregistries at the same normative authority tier:
 - `coredrp-v1-temporal-policy.md`;
 - `coredrp-v1-settlement-safety.md`;
 - `coredrp-v1-settlement-scheme-policies.md`;
+- `coredrp-v1-share-difficulty-adjustment-policies.md`;
 - `coredrp-v1-bitcoin-network-policies.md`;
 - `coredrp-v1-producer-lifecycle.md`;
 - `coredrp-v1-profile-transitions.md`;
@@ -33,8 +34,6 @@ Legal values:
 - `semantic_retry_threshold = 3`;
 - `max_admission_records_per_generation` in `1..100000000`.
 
-Producer lifecycle, permanent retirement, and cross-contract sealing are additionally normative through the incorporated producer/transition registries; those rules do not change this source grammar.
-
 Reference `btc1` Mining source/digest remain:
 
 `000e636f72656472702e6d696e696e670000000100000001000462746331010007626974636f696e00076d61696e6e65740002000101000007d0000000fa00001388000000fa00003a980001d4c00003000f4240`
@@ -43,50 +42,53 @@ Reference `btc1` Mining source/digest remain:
 
 ## 2. Miningcore Profile 1.1 canonical source
 
-Canonical source bytes are now:
+Canonical source bytes are:
 
 `uint16_be(profile_id_len) || "coredrp.miningcore" || uint32_be(1) || uint32_be(1) || uint16_be(scope_len) || scope || uint32_be(accounting_schema_version) || uint32_be(persistence_schema_version) || uint16_be(direct_candidate_validation_version) || uint16_be(settlement_policy_version) || bitcoin_network_policy_digest32 || settlement_scheme_policy_digest32`.
 
 Legal values are exact:
 
-- `accounting_schema_version = 2` (projection-local scope + shared merged-mining proof identity);
+- `accounting_schema_version = 3` — strict ordinary Miningcore accounting compatibility, projection-local authorization/membership and non-block-only accounting;
 - `persistence_schema_version = 1`;
 - `direct_candidate_validation_version = 2`;
-- `settlement_policy_version = 2` (scheme-policy binding, interval pruning and quarantine lifecycle).
+- `settlement_policy_version = 3` — resolved payout parameters, bound share-difficulty adjustment, versioned prune summaries and canonical quarantine recovery.
 
-Both digests MUST be exactly 32 bytes and recomputed from their normative registries for the Mining-selected `network_id` and `payout_scheme`.
+Both digests MUST be exactly 32 bytes and recomputed from their normative registries for the Mining-selected network/payout configuration.
 
 Reference `btc1` uses:
 
 - Bitcoin mainnet policy digest `0f477ab81c34cfc8ec31e146bd86f6760554e7d803d9522c7b0e0e818f412e3a`;
-- PPLNS settlement policy (`factor=2`) digest `8218444045964b49331e0e7e74590574ac552f522aa482b2aa60d7fca2637725`.
+- share-difficulty adjustment policy `identity` digest `512714e3717013d13566d57aef8ae1fee13b996cf4f0adf6e20eb05ff4d5edcf`;
+- PPLNS resolved factor `2` settlement-policy digest `7fab911a63b4a76576088f1ef27337132e0ae7fb55e040cd7df119ed66fa89e0`.
 
 Reference Miningcore source hex:
 
-`0012636f72656472702e6d696e696e67636f726500000001000000010004627463310000000200000001000200020f477ab81c34cfc8ec31e146bd86f6760554e7d803d9522c7b0e0e818f412e3a8218444045964b49331e0e7e74590574ac552f522aa482b2aa60d7fca2637725`
+`0012636f72656472702e6d696e696e67636f726500000001000000010004627463310000000300000001000200030f477ab81c34cfc8ec31e146bd86f6760554e7d803d9522c7b0e0e818f412e3a7fab911a63b4a76576088f1ef27337132e0ae7fb55e040cd7df119ed66fa89e0`
 
 SHA-256:
 
-`789656aeb1b8d523d1fd3a0000cbdf65f388ce27569c77ae7ff7b3fe306e2905`
+`35589865f465db5a241e9b70f9da79e5d93f369a6ed2b21eed9c0fc2987f0d0e`
 
 ## 3. Clock composition
 
-Multi-scope effective clock policy is the element-wise minimum in `coredrp-v1-clock-state.md`. Temporal-policy `applicable_clock_uncertainty` is exactly the deterministic function in `coredrp-v1-temporal-policy.md`.
+Multi-scope effective clock policy is the element-wise minimum in `coredrp-v1-clock-state.md`. Temporal-policy transition uncertainty, including last-scope deactivation, is exactly the deterministic function in `coredrp-v1-temporal-policy.md`.
 
 ## 4. Completeness and settlement composition
 
-Cross-sender completeness uses checked `B+2S`. Settlement dependency sets and scheme-specific pruning use `coredrp-v1-settlement-safety.md` plus the bound settlement-scheme policy digest.
+Cross-sender completeness uses checked `B+2S`. Every payout-effect scope, including a Miningcore auxiliary projection scope, is independently authorization/membership gated and participates in checkpoint/RequiredSender history. Settlement dependency sets and scheme-specific pruning use `coredrp-v1-settlement-safety.md` plus the bound resolved settlement-scheme/adjustment policy digest.
 
-## 5. Temporal policy
+## 5. Temporal policy and quarantine
 
 Completeness mode remains temporal audited state rather than immutable scope-contract state. Membership/mode lifecycle, deterministic staging sender set, safety origin and correction semantics are in `coredrp-v1-temporal-policy.md`.
 
+Payout-significant quarantine state transitions and corrected-effect evidence are in `coredrp-v1-quarantine-safety.md` and the ADMIN action registry.
+
 ## 6. Sorting/text rules
 
-Profile IDs, coin IDs, network IDs, settlement policy keys/values and commitment-class IDs are exact ASCII where their registries require ASCII. Canonical sorts are raw-byte sorts. Duplicate entries are rejected before hashing.
+Profile IDs, coin IDs, network IDs, settlement/adjustment policy IDs/keys/values and commitment-class IDs are exact ASCII where their registries require ASCII. Canonical sorts are raw-byte sorts. Duplicate entries are rejected before hashing.
 
 ## 7. Epoch contract binding and migration
 
 The outer epoch contract-binding grammar remains Section 11 of the canonical specification. Every numeric value is validated before sorting/deduplication/hashing.
 
-A successor epoch with changed Mining or Miningcore scope-contract digest is additionally subject to `coredrp-v1-profile-transitions.md`; a changed digest is not permission to reinterpret active producer generations or unsettled financial history.
+A successor epoch with changed Mining or Miningcore scope-contract digest is subject to `coredrp-v1-profile-transitions.md`; the closed-old-state barrier is exactly its `NoLiveDependencies` predicate unless an explicit migration/new scope identity is used.
