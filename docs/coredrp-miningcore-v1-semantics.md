@@ -1,12 +1,12 @@
 # CoreDRP Miningcore Profile 1.1 — Normative Semantics
 
-**Status:** Draft 0.5 normative registry  
+**Status:** Draft 0.6 normative registry  
 **Profile ID:** `coredrp.miningcore`  
 **Profile version:** 1.1  
 **Minimum Core:** 1.1  
 **Required Mining profile:** `coredrp.mining` 1.1 on the same scope
 
-This registry is incorporated by `CoreDRP-1-SPEC-0.5.md`. Reference tooling implements these rules but is lower authority.
+This registry is incorporated by `CoreDRP-1-SPEC-0.6.md`. Reference tooling implements these rules but is lower authority.
 
 ## 1. Event ownership and placement
 
