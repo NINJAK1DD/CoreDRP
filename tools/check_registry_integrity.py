@@ -3,18 +3,19 @@ from pathlib import Path
 import sys,json
 R=Path(__file__).resolve().parents[1]
 required={
- 'docs/coredrp-mining-v1-semantics.md':['Draft 0.6','completeness_policy_version','B + 2*S','(sender_id, lane_id, scope, producer_id)','1024 registered producer IDs','PayoutSafeThrough(scope)'],
- 'docs/coredrp-miningcore-v1-semantics.md':['Draft 0.6','accounting_schema_version','bytes','paired.scope != primary.scope','accounting_id','settlement_scheme_policy_digest32','Payout-significant quarantine'],
+ 'docs/coredrp-mining-v1-semantics.md':['Draft 0.6','PayoutEffectScopes(E)','TEMPORAL_MEMBERSHIP_REQUIRED','(sender_id, lane_id, scope, producer_id)','1024 registered producer IDs','PayoutSafeThrough(scope)'],
+ 'docs/coredrp-miningcore-v1-semantics.md':['Draft 0.6','accounting_schema_version','accounting_schema_version` | 3','settlement_policy_version` | 3','transport-authorized for `P.scope`','share.achieved_share_difficulty > 0','block_only = false','Guid.ToString("N")','QUARANTINE_RECONCILIATION'],
  'docs/coredrp-v1-clock-state.md':['Draft 0.6','Effective multi-scope lane policy','SENDER_PROCESSING_LIMIT','deterministically BAD','RECOVERING'],
- 'docs/coredrp-v1-temporal-policy.md':['Draft 0.6','RequiredStagingSender','applicable_clock_uncertainty_ms','scope_safety_origin_unix_ms','NO_POLICY','scope_safety_origin_unix_ms - 1','PolicyEvidenceV1','CORRECT_MEMBERSHIP_END'],
- 'docs/coredrp-v1-settlement-safety.md':['Draft 0.6','SettlementSafe','SettlementPruneSafe','scope_safety_origin_unix_ms','empty proven interval','RESOLVED_WAIVED','PayoutSafeThrough'],
- 'docs/coredrp-v1-settlement-scheme-policies.md':['Draft 0.6','settlement_scheme_policy_digest32','PPLNSBF','block_finder_percentage'],
+ 'docs/coredrp-v1-temporal-policy.md':['Draft 0.6','RequiredStagingSender','SkewTransition','last active clock-governed scope','applicable_clock_uncertainty_ms','NO_POLICY','PolicyEvidenceV1'],
+ 'docs/coredrp-v1-settlement-safety.md':['Draft 0.6','SettlementSafe','SettlementPruneSafe','SettlementEvidenceSummaryV1','share_difficulty_adjustment_policy_digest32','RESOLVED_WAIVED','PayoutSafeThrough'],
+ 'docs/coredrp-v1-settlement-scheme-policies.md':['Draft 0.6','uint16_be(2)','resolved effective','share_difficulty_adjustment_policy_digest32','PPLNSBF','block_finder_percentage'],
+ 'docs/coredrp-v1-share-difficulty-adjustment-policies.md':['Draft 0.6','share_difficulty_adjustment_policy_digest32','identity','constant_multiplier','AdjustShareDifficulty'],
  'docs/coredrp-v1-producer-lifecycle.md':['Draft 0.6','producer tombstone','MUST NEVER be registered again','semantic-contract digest'],
- 'docs/coredrp-v1-profile-transitions.md':['Draft 0.6','FINANCIALLY_INCOMPATIBLE','Financial migration barrier','active producer generation'],
- 'docs/coredrp-v1-quarantine-safety.md':['Draft 0.6','UNRESOLVED','RESOLVED_RECONCILED','RESOLVED_WAIVED','QUARANTINE_AND_ADVANCE'],
- 'docs/coredrp-v1-draft06-contracts.md':['Draft 0.6','coredrp-v1-settlement-scheme-policies.md','coredrp-v1-producer-lifecycle.md','coredrp-v1-profile-transitions.md','coredrp-v1-quarantine-safety.md','accounting_schema_version = 2','settlement_policy_version = 2'],
+ 'docs/coredrp-v1-profile-transitions.md':['Draft 0.6','FINANCIALLY_INCOMPATIBLE','NoLiveDependencies','active producer generation','SettlementEvidenceSummaryV1'],
+ 'docs/coredrp-v1-quarantine-safety.md':['Draft 0.6','UNRESOLVED','RESOLVED_RECONCILED','RESOLVED_WAIVED','ReconciledEffectEvidenceV1','QUARANTINE_RECONCILIATION','QUARANTINE_WAIVER'],
+ 'docs/coredrp-v1-draft06-contracts.md':['Draft 0.6','coredrp-v1-share-difficulty-adjustment-policies.md','accounting_schema_version = 3','settlement_policy_version = 3','35589865f465db5a241e9b70f9da79e5d93f369a6ed2b21eed9c0fc2987f0d0e'],
  'docs/coredrp-v1-bitcoin-network-policies.md':['Draft 0.6','MUST NOT be selected by any production Mining scope','bitcoin_network_policy_digest'],
- 'docs/coredrp-v1-admin-actions.md':['Draft 0.6','TEMPORAL_POLICY_RECONCILIATION','prior_policy_evidence','new_policy_evidence','policy_generation','staged_policy_digest'],
+ 'docs/coredrp-v1-admin-actions.md':['Draft 0.6','QUARANTINE_RECONCILIATION','QUARANTINE_WAIVER','corrected effect digest','TEMPORAL_POLICY_RECONCILIATION','staged_policy_digest'],
  'docs/coredrp-v1-errors.md':['Draft 0.6','SEMANTIC_RETRY_LIMIT','ProtocolError.disposition'],
  'docs/coredrp-v1-error-emission.md':['Draft 0.6','SEMANTIC_RETRY_LIMIT','TEMPORAL_MEMBERSHIP_REQUIRED'],
 }
@@ -31,9 +32,10 @@ for rel,needles in required.items():
 vector_required={
  'docs/coredrp-v1-core-hash-vectors.json':'current Core 1.1',
  'docs/coredrp-v1-admission-vectors.json':'current Mining admission',
- 'docs/coredrp-v1-accounting-vectors.json':'accounting-schema-v2',
+ 'docs/coredrp-v1-accounting-vectors.json':'accounting-schema-v3',
+ 'docs/coredrp-v1-accounting-schema3-safety-vectors.json':'accounting-schema-v3 strict safety vectors',
  'docs/coredrp-v1-bitcoin-profile-vectors.json':'Miningcore 1.1 Bitcoin candidate',
- 'docs/coredrp-v1-draft06-vectors.json':'profile-freeze',
+ 'docs/coredrp-v1-draft06-vectors.json':'final Profile 1.1 freeze conformance vectors',
  'docs/coredrp-v1-policy-clock-vectors.json':'current temporal bootstrap and ClockStateUpdate lifecycle vectors',
  'docs/coredrp-v1-wire-structure.json':None,
 }
@@ -41,8 +43,8 @@ for rel,sentinel in vector_required.items():
  p=R/rel
  if not p.exists():print('missing current conformance artifact:',rel,file=sys.stderr);failed=True;continue
  if sentinel and sentinel not in p.read_text(encoding='utf-8'):print('current conformance artifact missing sentinel:',rel,sentinel,file=sys.stderr);failed=True
-if not (R/'tools/verify_policy_clock_vectors.py').exists():
- print('stateful clock/bootstrap verifier missing',file=sys.stderr);failed=True
+for tool in ['tools/verify_policy_clock_vectors.py','tools/verify_accounting_schema3_safety.py']:
+ if not (R/tool).exists():print('required conformance verifier missing:',tool,file=sys.stderr);failed=True
 wp=R/'docs/coredrp-v1-wire-structure.json'
 if wp.exists():
  try:w=json.loads(wp.read_text())
@@ -58,4 +60,4 @@ if not h.exists():print('historical Draft 0.4 corpus missing archival copy',file
 for forbidden in ['docs/coredrp-v1-draft05-vectors.json','docs/coredrp-v1-profile-vectors.json','tools/verify_draft05_vectors.py','tools/verify_historical_draft04_vectors.py','model/CoreDRP-unsafe.cfg','docs/coredrp-v1-draft05-contracts.md','docs/coredrp-v1-wire-baseline.json','docs/coredrp-v1-package-baseline.json']:
  if (R/forbidden).exists():print('superseded/orphaned freeze artifact still present:',forbidden,file=sys.stderr);failed=True
 if failed:raise SystemExit(1)
-print('CoreDRP Draft 0.6 profile-freeze registry and authority integrity: OK')
+print('CoreDRP Draft 0.6 final Profile 1.1 registry and authority integrity: OK')
