@@ -47,7 +47,7 @@ For old scope-contract pair `C`, define `NoLiveDependencies(Q,C)` as true only w
 6. no live settlement override whose audit dependency still references ordinary evidence under `C`;
 7. no retained-epoch import/reconciliation operation in progress for effects interpreted under `C`;
 8. no active producer generation or in-flight admission under the old Mining digest;
-9. every final settlement/proof that depended on deletable old ordinary evidence has the versioned immutable summary required by `coredrp-v1-settlement-safety.md`;
+9. every final settlement/proof that depended on deletable old ordinary evidence has the exact `SettlementEvidenceSummaryV1` required by `coredrp-v1-settlement-safety.md`;
 10. every application-specific effect row under `C` is either final/immutable or explicitly named by a future versioned migration action.
 
 `closed-old-state barrier` means exactly `NoLiveDependencies(Q,C) == true`. Implementations MUST NOT replace this predicate with age, epoch retirement, zero currently connected senders, an operator boolean, or a best-effort query that omits any listed dependency class.
