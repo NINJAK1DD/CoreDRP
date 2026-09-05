@@ -42,7 +42,7 @@ Unknown values MUST fail scope-contract negotiation with `SEMANTIC_CONTRACT_MISM
 | `accounting_schema_version` | 3 | projection-local scope + strict Miningcore accounting compatibility in Section 3 |
 | `persistence_schema_version` | 1 | atomic PostgreSQL receiver/effect persistence in Section 11 |
 | `direct_candidate_validation_version` | 2 | Bitcoin validation in Sections 6 and 10 plus bound network policy |
-| `settlement_policy_version` | 4 | resolved scheme/adjustment binding, pruning and quarantine rules in Sections 8–10 and incorporated registries |
+| `settlement_policy_version` | 5 | resolved scheme/adjustment binding, pruning and quarantine rules in Sections 8–10 and incorporated registries |
 
 All other values are unallocated for Miningcore Profile 1.1 and MUST be rejected.
 
@@ -194,3 +194,13 @@ The `synthetic-regtest` network policy is test-only and MUST NOT be selected by 
 The submitting edge persists exact candidate/settlement evidence locally before invoking `submitblock`. Recorder, critical-lane, clock, completeness, or payout-fence failure MUST NOT delay local consensus submission.
 
 For a received batch, state-dependent profile validation, projection-scope authorization/membership, referential checks, application effects, candidate/accounting records, receiver stream head, checkpoint evidence, quarantine/gap state, and financial proof dependencies commit in the same durable transaction. A semantic failure rolls back the entire current batch and emits no ACK.
+
+## 12. Caller-request identity and accounting group uniqueness
+
+The canonical request encodings in `coredrp-v1-miningcore-requests.md` are mandatory for event types `0x0200`, `0x0201` and `0x0202`. They exclude sequencer-generated Core identity/time. After resolving a new request's idempotency key, the sequencer assigns event time and sets both accounting projections' `share.created_unix_ms` to that exact value. Retrying the original request never supplies or regenerates this timestamp.
+
+For `0x0200`, the receiver stores a global durable `accounting_id -> (original Core event identity, accounting_group_digest32)` mapping within its logical accounting database, shared by all senders, scopes and epochs. `AccountingGroupV1 = uint16_be(1) || accounting_uuid16 || uint32_be(request_len) || MiningcoreAccountingShareRequestV1 || int64_be(assigned_event_time) || payload_hash32`; its SHA-256 is the group digest. The canonical request is reconstructed from the accepted payload excluding generated time; original identity is `(sender,epoch,lane,sequence,relay_event_id)`.
+
+First use locks/inserts the global UUID and commits the group digest, exact projection set and all effects with the receiver head in one transaction. Concurrent first use is serialized by database uniqueness, never check-then-insert outside the transaction. Replay of the original immutable Core event with identical group/evidence returns its prior result and applies no effect. Any second distinct Core event reusing that accounting UUID is `INVALID_STATE_TRANSITION`, including byte-identical application content. Any conflicting digest or original event evidence is also `INVALID_STATE_TRANSITION`; neither case is quarantinable, neither advances the stream or mutates financial state. Parent/auxiliary projections form one atomic group and therefore share the single UUID legitimately.
+
+The mapping/tombstone survives pruning, epoch changes and receiver recovery for the lifetime of the accounting namespace. It cannot be recreated as a new group after retention expiry. Sender pre-admission performs the same identity-conflict check where its durable evidence permits; receiver global uniqueness remains authoritative for cross-sender races.

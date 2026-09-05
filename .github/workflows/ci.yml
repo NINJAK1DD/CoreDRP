@@ -24,7 +24,7 @@ jobs:
         run: python3 tools/verify_draft06_vectors.py
       - name: Verify review-blocker arithmetic, authority and summary vectors
         run: python3 tools/verify_review_blocker_vectors.py
-      - name: Verify financial v4 boundaries, admission and effect identities
+      - name: Verify financial v5 boundaries, admission and effect identities
         run: python3 tools/verify_financial_hardening.py
       - name: Verify freeze-completion safety vectors
         run: python3 tools/verify_freeze_completion_vectors.py
@@ -39,6 +39,8 @@ jobs:
         run: python3 tools/verify_profile_vectors.py
       - name: Verify strict Miningcore accounting schema 3
         run: python3 tools/verify_accounting_schema3_safety.py
+      - name: Verify review hardening and retained-source settlement audit
+        run: python3 tools/verify_review2_vectors.py
       - uses: bufbuild/buf-setup-action@v1
       - run: buf lint
       - name: Reject protobuf wire/source breaking changes
@@ -70,8 +72,8 @@ jobs:
       - name: Prove realistic TLA+ mutations are detected
         run: |
           python3 tools/mutate_tla.py
-          declare -A expected=( [prune]=PruneSafe [ack]=AckSafe [drain]=NormalTransitionDrained [payout]=PayoutEvidenceSafe [exceptional_gap]=ExceptionalTransitionCovered [epoch_policy]=EpochProofResetSafe )
-          for m in prune ack drain payout exceptional_gap epoch_policy; do
+          declare -A expected=( [prune]=PruneSafe [ack]=AckSafe [drain]=NormalTransitionDrained [payout]=PayoutEvidenceSafe [exceptional_gap]=ExceptionalTransitionCovered [epoch_policy]=EpochProofResetSafe [writer_double]=SingleWriter )
+          for m in prune ack drain payout exceptional_gap epoch_policy writer_double; do
             set +e
             java -XX:+UseParallelGC -jar .build/tla2tools.jar -config model/CoreDRP.cfg .build/mutations/$m/CoreDRP.tla > .build/tla-$m.log 2>&1
             rc=$?

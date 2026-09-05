@@ -46,13 +46,20 @@
     {"case_kind":"good_bounds_outside","new_stream":false,"generation":4,"last_generation":3,"state":"GOOD","valid_for_ms":15000,"effective_expiry_ms":15000,"reported_skew_ms":2000,"bound_skew_ms":2000,"lower":-2500,"upper":700,"expected":"CLOCK_CONTRACT_VIOLATION"},
     {"case_kind":"bad_expiry_latched","previous_state":"BAD","evidence_expired":true,"expected":"RECOVERING"},
     {"case_kind":"bad_recovery_three_good","previous_state":"BAD","fresh_good_count":3,"spans_probe_interval":true,"utc_not_behind":true,"expected":"GOOD"},
-    {"case_kind":"new_stream_generation_reset","new_stream":true,"generation":1,"last_generation_previous_stream":99,"state":"UNKNOWN","valid_for_ms":1000,"effective_expiry_ms":15000,"reported_skew_ms":2000,"bound_skew_ms":2000,"expected":"UNKNOWN"}
+    {"case_kind":"new_stream_generation_reset","new_stream":true,"generation":1,"last_generation_previous_stream":99,"state":"UNKNOWN","valid_for_ms":1000,"effective_expiry_ms":15000,"reported_skew_ms":2000,"bound_skew_ms":2000,"expected":"UNKNOWN"},
+    {"case_kind":"numeric_interval","generation":1,"valid_for_ms":1000,"effective_expiry_ms":1000,"reported_skew_ms":2000,"bound_skew_ms":2000,"lower":-3000,"upper":-2000,"state":"UNKNOWN","expected":"UNKNOWN"},
+    {"case_kind":"numeric_interval","generation":1,"valid_for_ms":1000,"effective_expiry_ms":1000,"reported_skew_ms":2000,"bound_skew_ms":2000,"lower":-3000,"upper":-2001,"state":"BAD","expected":"BAD"},
+    {"case_kind":"numeric_interval","generation":1,"valid_for_ms":1000,"effective_expiry_ms":1000,"reported_skew_ms":2000,"bound_skew_ms":2000,"lower":2000,"upper":3000,"state":"UNKNOWN","expected":"UNKNOWN"},
+    {"case_kind":"numeric_interval","generation":1,"valid_for_ms":1000,"effective_expiry_ms":1000,"reported_skew_ms":2000,"bound_skew_ms":2000,"lower":2001,"upper":3000,"state":"BAD","expected":"BAD"},
+    {"case_kind":"numeric_interval","generation":1,"valid_for_ms":1000,"effective_expiry_ms":1000,"reported_skew_ms":2000,"bound_skew_ms":2000,"lower":3000,"upper":2000,"state":"BAD","expected":"MALFORMED_FRAME"}
   ],
   "time_cases":[
     {"case_kind":"valid_epoch_ms","event_time":1788541200000,"expected":"ACCEPT"},
     {"case_kind":"negative","event_time":-1,"expected":"REJECT"},
     {"case_kind":"beyond_year9999","event_time":253402300800000,"expected":"REJECT"},
-    {"case_kind":"overflow_b_plus_2s","B":9223372036854775000,"S":1000,"expected":"REJECT_OVERFLOW"}
+    {"case_kind":"overflow_b_plus_2s","B":9223372036854775000,"S":1000,"expected":"REJECT_OVERFLOW"},
+    {"case_kind":"overflow_b_plus_2s","B":253402300797999,"S":1000,"expected":"ACCEPT"},
+    {"case_kind":"overflow_b_plus_2s","B":253402300798000,"S":1000,"expected":"REJECT_OVERFLOW"}
   ],
   "scope_contract_ownership":[
     {"case_kind":"mining_share","event_type":"0x0100","has_mining":true,"has_miningcore":false,"expected":"ACCEPT"},

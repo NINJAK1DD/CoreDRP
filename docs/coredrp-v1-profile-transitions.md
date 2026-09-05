@@ -71,3 +71,7 @@ Every settlement proof records the exact Mining and Miningcore scope-contract di
 The receiver MUST evaluate this registry before recording successor epoch approval/transition for an affected scope. The closure predicate and producer seals MUST be evaluated under the same serializable/explicitly locked activation transaction or under an immutable snapshot/version whose state version is rechecked at commit.
 
 A sender and receiver MUST NOT advertise/accept the successor binding as active while the required producer seals, dependency closure, or explicit migration barrier are incomplete.
+
+## 6. Empty uncertainty set
+
+An empty uncertainty set satisfies only the uncertainty clause of `NoLiveDependencies`; every other dependency class must still be closed under the same activation transaction. It is not an empty-database shortcut for financial migration.

@@ -138,7 +138,7 @@
     {
       "case_kind": "valid_reference",
       "payout_scheme": 1,
-      "completeness_policy_version": 3,
+      "completeness_policy_version": 4,
       "retention_policy_version": 1,
       "cross_sender_ordering_policy": 1,
       "admission_policy_version": 3,
@@ -147,7 +147,7 @@
     {
       "case_kind": "unknown_payout_scheme",
       "payout_scheme": 7,
-      "completeness_policy_version": 3,
+      "completeness_policy_version": 4,
       "retention_policy_version": 1,
       "cross_sender_ordering_policy": 1,
       "admission_policy_version": 3,
@@ -156,7 +156,7 @@
     {
       "case_kind": "unknown_completeness_version",
       "payout_scheme": 1,
-      "completeness_policy_version": 2,
+      "completeness_policy_version": 3,
       "retention_policy_version": 1,
       "cross_sender_ordering_policy": 1,
       "admission_policy_version": 3,
@@ -165,7 +165,7 @@
     {
       "case_kind": "unknown_retention_version",
       "payout_scheme": 1,
-      "completeness_policy_version": 3,
+      "completeness_policy_version": 4,
       "retention_policy_version": 2,
       "cross_sender_ordering_policy": 1,
       "admission_policy_version": 3,
@@ -174,7 +174,7 @@
     {
       "case_kind": "unknown_order_policy",
       "payout_scheme": 1,
-      "completeness_policy_version": 3,
+      "completeness_policy_version": 4,
       "retention_policy_version": 1,
       "cross_sender_ordering_policy": 2,
       "admission_policy_version": 3,

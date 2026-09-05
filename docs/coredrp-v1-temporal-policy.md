@@ -197,3 +197,23 @@ A named operational override may permit settlement where the settlement registry
 ## 10. Future portion of reconciliation
 
 Retroactive correction is receiver/operator repair. If a reconciliation also changes sender behavior at a future boundary, that future portion MUST independently satisfy Sections 2–5 staging and timing rules.
+
+## 11. Durable history before permission withdrawal
+
+For every transition that would invalidate an affected sender's admissions at/after boundary `T` (including `MEMBERSHIP_END` and a no-relay holder not becoming a member), the sender MUST prove `MaxDurableAdmittedEventTime(sender,Q,affected_permission) < T` before staging acknowledgement. An empty history satisfies this condition without a numeric sentinel. This durable high-water includes all payout-effect scopes, all epochs and already-ACKed/pruned events under the affected permission, not merely the current retained WAL. It is updated atomically with successful admission and never decreased by drain, ACK, prune, restart or epoch rollover.
+
+Under the admission lock, first persist the restrictive cap so no concurrent new admission can race the check; then check the high-water. If it is `>= T`, return `ADMIN_ACTION_CONFLICT` and no staging ACK. The cap remains restrictive. Choose a later boundary strictly after the high-water, or use explicit audited reconciliation; draining the WAL alone cannot make an already-admitted future event safe under the old boundary. A new proposal cannot reopen an older cap without explicit activated policy.
+
+A holder becoming a member is exempt only when durable activated/staged membership and the exact new contracts prove every affected event remains admissible at its assigned timestamp, including any later membership end. An operator boolean or merely appearing in the new sender set is insufficient. Otherwise use the strict high-water check.
+
+Receiver activation independently checks its retained per-sender/scope committed-event high-water and permission coverage under the proposed history, under the same policy/stream locks. It rejects a boundary that would reclassify any committed effect as unauthorized, even if the sender supplied a staging ACK. The sender's acknowledgement attests to the all-history high-water check under the exact staging digest; retain the numeric high-water (or explicit empty marker), scope and permission identity as authenticated audit evidence. No Core wire change is implied.
+
+## 12. ActivatedPolicyEvidenceV1 and holder recovery
+
+Authenticated out-of-band distribution MUST carry these canonical bytes in order:
+
+`uint16_be(1) || receiver_uuid16 || database_incarnation_uuid16 || sender_uuid16 || uint32_be(scope_len) || scope || uint64_be(policy_generation) || int64_be(valid_from) || uint8(has_until) || [int64_be(valid_until)] || uint8(mode) || mining_contract_digest32 || uint8(has_miningcore_contract) || [miningcore_contract_digest32] || admin_idempotency_uuid16 || admin_digest32 || uint64_be(receiver_state_version)`.
+
+UUIDs are RFC 9562 bytes; hashes are 32 bytes; flags are 0/1; generation is positive; scope uses Mining grammar; mode is 1/2; times use the Core production range with `valid_until > valid_from` when present. No normalization or implicit defaults are allowed. The authenticated receiver identity/incarnation must match the pinned Core receiver; sender and contract selections must match the recipient's durable epoch binding. Authentication uses the existing mutually authenticated administrative channel and its retained audit identity; these bytes alone are not a signature or proof of trust. Receiver activation and sender persistence precede permission use. Replayed lower generations cannot reopen a cap. Holder issuance and recovery obey Section 2; missing trustworthy history fails closed.
+
+Profile 1.1 intentionally provides no holder-retirement shortcut. A permanently lost holder blocks ordinary activation on the old scope. Provisioning a distinct scope under the migration rules is the supported operational alternative; it does not erase the old scope's retention or uncertainty. A future holder-retirement action requires proof that all copies of the old durability identity are permanently fenced, plus preserved historical admission evidence. Revoking one certificate or deleting an operator record is not sufficient proof.

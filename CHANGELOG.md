@@ -1,5 +1,14 @@
 # Changelog
 
+## Admission and retained-audit hardening — 2026-09-05
+
+- Require durable all-history admission/commit checks before permission withdrawal, including membership end and previously ACKed/pruned events.
+- Allocate canonical Miningcore caller requests and activated-policy evidence; enforce global accounting UUID uniqueness with permanent replay tombstones.
+- Retain original settlement payloads and immutable reward/deduction inputs; define PROP arithmetic and exact winning-share linkage.
+- Advance completeness policy 3 → 4 and settlement policy 4 → 5; regenerate contract/effect/summary digests without changing protobuf.
+- Restore Python and independent C# ADMIN epoch-action encodings, add clock/time and duplicate/oversized input regressions, and make SingleWriter independently mutation-testable.
+- Explicitly retain the bounded safety model scope and permanent-holder recovery limitation.
+
 ## Financial hardening — 2026-09-05
 
 - Freeze PPLNS/PPLNSBF exact score/cutoff and full-tuple pagination; bind PPS retained percentage, eligibility and exact liability arithmetic.
