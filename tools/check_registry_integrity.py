@@ -3,8 +3,9 @@ from pathlib import Path
 import sys,json
 R=Path(__file__).resolve().parents[1]
 required={
+ 'docs/coredrp-v1-miningcore-requests.md':['Draft 0.6','MiningcoreAccountingShareRequestV1','BitcoinDirectCoinbaseCandidateRequestV1','CandidateStateUpdateRequestV1','CoreDRP1-ADMISSION','created_unix_ms'],
  'docs/coredrp-mining-v1-semantics.md':['Draft 0.6','PayoutEffectScopes(E)','TEMPORAL_MEMBERSHIP_REQUIRED','(sender_id, lane_id, scope, producer_id)','1024 registered producer IDs','PayoutSafeThrough(scope)'],
- 'docs/coredrp-miningcore-v1-semantics.md':['Draft 0.6','accounting_schema_version','accounting_schema_version` | 3','settlement_policy_version` | 4','transport-authorized for `P.scope`','share.achieved_share_difficulty > 0','block_only = false','Guid.ToString("N")','QUARANTINE_RECONCILIATION'],
+ 'docs/coredrp-miningcore-v1-semantics.md':['Draft 0.6','accounting_schema_version','accounting_schema_version` | 3','settlement_policy_version` | 5','transport-authorized for `P.scope`','share.achieved_share_difficulty > 0','block_only = false','Guid.ToString("N")','QUARANTINE_RECONCILIATION'],
  'docs/coredrp-v1-clock-state.md':['Draft 0.6','Effective multi-scope lane policy','SENDER_PROCESSING_LIMIT','deterministically BAD','RECOVERING'],
  'docs/coredrp-v1-temporal-policy.md':['Draft 0.6','RequiredStagingSender','AdmissionPolicyHolders(Q)','issuance-ledger lock','SkewTransition','last active clock-governed scope','applicable_clock_uncertainty_ms','NO_POLICY','PolicyEvidenceV1'],
  'docs/coredrp-v1-settlement-safety.md':['Draft 0.6','SettlementSafe','SettlementPruneSafe','SettlementEvidenceSummaryV1','ParticipantEffectV1','EffectIdentityV1','CheckpointEvidenceV1','UncertaintyRecordV1','share_difficulty_adjustment_policy_digest32','RESOLVED_WAIVED','PayoutSafeThrough'],
@@ -14,7 +15,7 @@ required={
  'docs/coredrp-v1-profile-transitions.md':['Draft 0.6','FINANCIALLY_INCOMPATIBLE','NoLiveDependencies','POLICY_RECONCILIATION_PENDING','active producer generation','SettlementEvidenceSummaryV1'],
  'docs/coredrp-v1-quarantine-safety.md':['Draft 0.6','UNRESOLVED','RESOLVED_RECONCILED','RESOLVED_WAIVED','ReconciledEffectEvidenceV1','QUARANTINE_RECONCILIATION','QUARANTINE_WAIVER','coredrp-v1-validator-authorities.md'],
  'docs/coredrp-v1-validator-authorities.md':['Draft 0.6','validator_profile_digest32','coredrp.profile11.exact-revalidation','22a09b0066b1b1e7fdd6258fc435ea4e4c7ad7aff8b0440915fec452abb88e04'],
- 'docs/coredrp-v1-draft06-contracts.md':['Draft 0.6','coredrp-v1-share-difficulty-adjustment-policies.md','coredrp-v1-validator-authorities.md','accounting_schema_version = 3','settlement_policy_version = 4','d48a0a0d88a10d4a9feef462f0ee9b8240122d9c05e21e8fdd3a4f21ac3c16b5'],
+ 'docs/coredrp-v1-draft06-contracts.md':['Draft 0.6','coredrp-v1-share-difficulty-adjustment-policies.md','coredrp-v1-validator-authorities.md','accounting_schema_version = 3','settlement_policy_version = 5','6ecd5753448cc09f2ecda289a9b77b31b83dbc0391f83d402620f309f6b83979'],
  'docs/coredrp-v1-bitcoin-network-policies.md':['Draft 0.6','MUST NOT be selected by any production Mining scope','bitcoin_network_policy_digest'],
  'docs/coredrp-v1-admin-actions.md':['Draft 0.6','QUARANTINE_RECONCILIATION','QUARANTINE_WAIVER','corrected effect digest','TEMPORAL_POLICY_RECONCILIATION','staged_policy_digest'],
  'docs/coredrp-v1-errors.md':['Draft 0.6','SEMANTIC_RETRY_LIMIT','ProtocolError.disposition'],
@@ -39,14 +40,16 @@ vector_required={
  'docs/coredrp-v1-draft06-vectors.json':'final Profile 1.1 freeze conformance vectors',
  'docs/coredrp-v1-policy-clock-vectors.json':'current temporal bootstrap and ClockStateUpdate lifecycle vectors',
  'docs/coredrp-v1-review-blocker-vectors.json':'review-blocker vectors',
- 'docs/coredrp-v1-financial-hardening-vectors.json':'settlement-policy-v4 financial hardening vectors',
+ 'docs/coredrp-v1-financial-hardening-vectors.json':'settlement-policy-v5 financial hardening vectors',
+ 'docs/coredrp-v1-review2-vectors.json':'admission/history/audit hardening vectors',
+ 'docs/coredrp-v1-request-schemas.json':'ActivatedPolicyEvidenceV1',
  'docs/coredrp-v1-wire-structure.json':None,
 }
 for rel,sentinel in vector_required.items():
  p=R/rel
  if not p.exists():print('missing current conformance artifact:',rel,file=sys.stderr);failed=True;continue
  if sentinel and sentinel not in p.read_text(encoding='utf-8'):print('current conformance artifact missing sentinel:',rel,sentinel,file=sys.stderr);failed=True
-for tool in ['tools/verify_policy_clock_vectors.py','tools/verify_accounting_schema3_safety.py','tools/verify_review_blocker_vectors.py','tools/verify_financial_hardening.py','tools/financial_semantics.py']:
+for tool in ['tools/verify_policy_clock_vectors.py','tools/verify_accounting_schema3_safety.py','tools/verify_review_blocker_vectors.py','tools/verify_financial_hardening.py','tools/financial_semantics.py','tools/request_encodings.py','tools/audit_evidence.py','tools/verify_review2_vectors.py','tools/csharp-vector-check/EncodingChecks.cs']:
  if not (R/tool).exists():print('required conformance verifier missing:',tool,file=sys.stderr);failed=True
 wp=R/'docs/coredrp-v1-wire-structure.json'
 if wp.exists():

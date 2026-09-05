@@ -166,7 +166,7 @@ Next == Admit \/ Checkpoint \/ PersistAnchor \/ Commit \/ RememberAck \/ Prune \
 
 TypeOK ==
   /\ walTail \in 0..MaxSeq /\ anchorTail \in 0..MaxSeq /\ receiverDurable \in 0..MaxSeq /\ senderAck \in 0..MaxSeq /\ pruned \in 0..MaxSeq
-  /\ writerCount \in 0..1 /\ activeEpoch \in {1,2} /\ retiredEpochs \subseteq {1,2}
+  /\ writerCount \in 0..2 /\ activeEpoch \in {1,2} /\ retiredEpochs \subseteq {1,2}
   /\ checkpointFloor \in Nat /\ checkpointSeq \in 0..MaxSeq /\ committedCheckpointFloor \in Nat /\ temporalFloor \in Nat /\ lastEventTime \in Nat
   /\ membershipProof \in BOOLEAN /\ membershipProofEpoch \in {0,1,2} /\ clockProof \in BOOLEAN /\ clockProofEpoch \in {0,1,2}
   /\ gapRecorded \in BOOLEAN /\ gapTail \in 0..MaxSeq /\ gapEpoch \in {0,1,2} /\ gapWildcard \in BOOLEAN /\ gapStatus \in {0,1,2,3}

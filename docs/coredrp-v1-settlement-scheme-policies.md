@@ -97,7 +97,7 @@ Every `SettlementSafe` proof records both `settlement_scheme_policy_digest32` an
 
 ## 5. PPLNSScoreV1 and PPLNSBFScoreV1
 
-These algorithms are selected by settlement policy source version 3 and Miningcore `settlement_policy_version = 4`. They deliberately replace host `decimal` casts and arithmetic; an unmodified Miningcore payout handler is not conforming.
+These algorithms are selected by settlement policy source version 3 and Miningcore `settlement_policy_version = 5`. They deliberately replace host `decimal` casts and arithmetic; an unmodified Miningcore payout handler is not conforming.
 
 For each eligible accepted accounting projection, obtain positive finite binary64 adjusted assigned difficulty `D` from the bound adjustment policy and positive finite binary64 network difficulty `N`. Compute `q = roundTiesToEven_binary64(exact(D) / exact(N))` with exactly one IEEE-754 binary64 round-to-nearest, ties-to-even, including gradual underflow (no flush-to-zero). There is no intermediate rounding. Overflow/non-finite result fails the settlement closed; positive input rounding to zero also fails closed rather than disappearing from the dependency set. `score` is the exact rational represented by q's bits. Conversion to the accumulation domain is lossless numerator/denominator conversion, with unbounded integer precision. No binary64-to-host-decimal cast or 15/17-digit formatting is allowed.
 
@@ -122,3 +122,11 @@ Treat positive `reward_basis_satoshis` as an exact integer, positive finite **as
 `liability = reward_basis_satoshis / 100000000 * assigned_difficulty / network_difficulty * retained_reward_percentage / 100`.
 
 Truncate toward zero to 24 decimal fractional places once (`floor(liability * 10^24) / 10^24` for positive liability). Encode canonical `Decimal38Scale24`, reject zero or overflow. Intermediate host binary64 division, decimal casts/rounding and live fee configuration are forbidden. Compare the canonical embedded amount byte-for-byte to this result before accepting an effect. Fees are applied exactly once; downstream recording MUST NOT deduct current recipient percentages again. Replay, quarantine revalidation and settlement of an accepted liability use its immutable accepting contract and input evidence. A fee change requires a new bound digest and financial migration barrier, never reinterpretation of an existing liability.
+
+## 7. PROPScoreV1 and PROPAllocationV1
+
+PROP selects every eligible accounting projection in the exact durable round interval `[round_start,block_boundary]` from one immutable snapshot under the accepting contracts. It uses the same positive finite adjusted difficulty, one correctly rounded binary64 quotient, lossless rational conversion, error handling and canonical full-tuple order as PPLNSScoreV1. There is no factor or partial boundary: every selected share has contribution equal to its score and fraction exactly 1. Duplicate accounting identities fail closed. Apply the same exact rational reward allocation, per-accounting scale-24 truncation, per-miner aggregation and retained dust rules with no finder reserve. An empty/zero-total round cannot produce a share allocation and must retain its unresolved settlement evidence.
+
+## 8. Block-finder linkage
+
+Before allocating a PPLNSBF reserve, the settlement MUST bind its exact accepted block hash and height to exactly one accepted winning accounting projection with `share.is_block_candidate=true`, matching candidate hash/height and the same scope/contract. Its accounting UUID and exact miner bytes are the finder identity, even outside the score window. An application `block.Miner` string alone is insufficient. Missing, conflicting or ambiguous linkage fails settlement closed and retains evidence; never invent a new accounting UUID for a balance row. Retain that source payload and its Core identity with the audit bundle. If the finder is also in the window, combine its finder and window amounts before the single truncation.

@@ -15,7 +15,7 @@ Draft 0.6 supersedes Draft 0.5 for normative interpretation. Earlier drafts rema
 
 Normative authority, highest first: this specification; incorporated numbered registries; conformance vectors; protobuf definitions; reference tooling. Reference code MUST NOT override the specification or an incorporated registry.
 
-Incorporated registries are: `coredrp-mining-v1-semantics.md`, `coredrp-miningcore-v1-semantics.md`, `coredrp-v1-draft06-contracts.md`, `coredrp-v1-bitcoin-network-policies.md`, `coredrp-v1-settlement-scheme-policies.md`, `coredrp-v1-share-difficulty-adjustment-policies.md`, `coredrp-v1-settlement-safety.md`, `coredrp-v1-temporal-policy.md`, `coredrp-v1-quarantine-safety.md`, `coredrp-v1-validator-authorities.md`, `coredrp-v1-profile-transitions.md`, `coredrp-v1-admin-actions.md`, `coredrp-v1-errors.md`, `coredrp-v1-error-emission.md`, `coredrp-v1-metrics.md`, and the event/wire registries already in this repository.
+Incorporated registries are: `coredrp-mining-v1-semantics.md`, `coredrp-miningcore-v1-semantics.md`, `coredrp-v1-draft06-contracts.md`, `coredrp-v1-bitcoin-network-policies.md`, `coredrp-v1-settlement-scheme-policies.md`, `coredrp-v1-share-difficulty-adjustment-policies.md`, `coredrp-v1-settlement-safety.md`, `coredrp-v1-temporal-policy.md`, `coredrp-v1-quarantine-safety.md`, `coredrp-v1-validator-authorities.md`, `coredrp-v1-miningcore-requests.md`, `coredrp-v1-profile-transitions.md`, `coredrp-v1-admin-actions.md`, `coredrp-v1-errors.md`, `coredrp-v1-error-emission.md`, `coredrp-v1-metrics.md`, and the event/wire registries already in this repository.
 
 ## 2. Layering
 
@@ -45,7 +45,7 @@ Cryptographic integers use fixed-width big-endian encoding: `uint8`, `uint16_be`
 
 Before any value enters any cryptographic preimage: lane is `0..255`; event type `0..65535`; sequence `1..2^63-1`; scope length `0..65535`; payload length fits uint32 and all negotiated/profile caps; Core/profile versions fit uint32; profile IDs are ASCII; production event time is `0..253402300799999` ms. Implementations MUST reject before narrowing, sorting, deduplication, or hashing; they MUST NOT truncate, wrap, or language-cast an unvalidated wider integer.
 
-All time arithmetic, including `B+2S`, uses checked arithmetic and fails closed on overflow.
+All time arithmetic, including `B+2S`, uses checked arithmetic against the Core production-time range `0..253402300799999` ms and fails closed if the result exceeds that range, even if it still fits int64.
 
 ## 6. Event/lane placement
 
@@ -420,3 +420,6 @@ Canonical project: `https://coredrp.org`
 Source: `https://github.com/NINJAK1DD/CoreDRP`
 
 <!-- COREDRP-SPEC-END:50 -->
+### Model scope and progress work
+
+The checked TLA+ model establishes bounded safety only. It has no fairness assumptions, liveness properties or deadlock checking; green CI does not prove eventual drain, recovery or UNKNOWN-grace termination. Those progress properties are explicitly post-freeze implementation work, with scheduler/network/storage availability assumptions to be stated before a liveness claim. `CHECK_DEADLOCK FALSE` is intentional because blocked incident states are modeled. The SingleWriter invariant is independently exercised by a double-acquisition mutation.

@@ -2,6 +2,7 @@
 from pathlib import Path
 R=Path(__file__).resolve().parents[1];src=(R/'model/CoreDRP.tla').read_text()
 mutations={
+ 'writer_double':("/\\ writerCount=0 /\\ ~blocked /\\ writerCount'=1","/\\ writerCount<2 /\\ ~blocked /\\ writerCount'=writerCount+1"),
  'prune':("/\\ pruned'=senderAck","/\\ pruned'=receiverDurable"),
  'ack':("/\\ senderAck'=receiverDurable","/\\ senderAck'=walTail"),
  'drain':("  /\\ transitionMode'=1 /\\ oldTailAtTransition'=walTail /\\ oldDrainedAtTransition'=TRUE\n","  /\\ transitionMode'=1 /\\ oldTailAtTransition'=walTail /\\ oldDrainedAtTransition'=FALSE\n"),

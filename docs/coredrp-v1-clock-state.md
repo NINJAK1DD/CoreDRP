@@ -20,7 +20,7 @@ No tuple ordering, maximum, average, first-scope rule, or per-scope lane state i
 
 ## 2. Common structural rules
 
-Every accepted update requires non-zero strictly increasing stream-local generation, a non-UNSPECIFIED state/reason, valid lifetime, exact effective skew, paired offset bounds, and valid current-stream probe identity where required. Structural violations are `MALFORMED_FRAME`; semantically contradictory combinations are `CLOCK_CONTRACT_VIOLATION`.
+Every accepted update requires non-zero strictly increasing stream-local generation, a non-UNSPECIFIED state/reason, valid lifetime, exact effective skew, paired offset bounds with `lower <= upper` for every state, and valid current-stream probe identity where required. Structural violations are `MALFORMED_FRAME`; semantically contradictory combinations are `CLOCK_CONTRACT_VIOLATION`.
 
 Let `S = effective_permitted_skew_ms` and `I=[lower,upper]`.
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright 2026 Rob Cooke
 # SPDX-License-Identifier: Apache-2.0
-"""Execute financial v4 algorithms against boundary, mutation and stateful cases."""
+"""Execute financial v5 algorithms against boundary, mutation and stateful cases."""
 import copy
 import hashlib
 import json
@@ -76,7 +76,7 @@ rejects(pps_liability,**args,eligible_network=False)
 # Each failure leaves both WAL and caller idempotency state unchanged, then repair retries.
 p=dict(activated=True,authorized=True,contract=True,mode='RELAY_REQUIRED',member=True,**{'from':1000,'until':2000})
 for mutation in ({'activated':False},{'authorized':False},{'contract':False},{'member':False},{'mode':'NO_POLICY'},{'until':1000}):
-    state={'policies':{'parent':p.copy(),'aux':dict(p,**mutation)},'wal':[],'outcomes':{}}
+    state={'policies':{'parent':p.copy(),'aux':dict(p,**mutation)},'wal':[],'outcomes':{},'admission_history_known':True}
     before=copy.deepcopy(state)
     rejects(admit,state,'request-1',['parent','aux'],1000)
     assert state==before
@@ -84,7 +84,7 @@ for mutation in ({'activated':False},{'authorized':False},{'contract':False},{'m
     assert admit(state,'request-1',['parent','aux'],1000)==1
     state['policies'].clear()
     assert admit(state,'request-1',['parent','aux'],1000)==1 and len(state['wal'])==1
-state={'policies':{'parent':p.copy()},'wal':[],'outcomes':{}}
+state={'policies':{'parent':p.copy()},'wal':[],'outcomes':{},'admission_history_known':True}
 rejects(admit,state,'r',['parent','aux'],1000);assert not state['wal'] and not state['outcomes']
 state['policies']['aux']=dict(p,mode='NO_RELAY_REQUIRED',member=False)
 assert admit(state,'r',['parent','aux'],1000)==1
@@ -132,7 +132,7 @@ rejects(participant_digest,s,[sources[0],upper])
 rejects(participant_digest,s,[sources[0],dict(upper,amount='1')])
 
 # Offline no-relay nonmember: issuance before preparation makes it a required holder.
-receiver={'mode':'NO_RELAY_REQUIRED','holders':set(),'holder_skews':{},'pending':None}
+receiver={'mode':'NO_RELAY_REQUIRED','holders':set(),'holder_skews':{},'pending':None,'committed_history_known':True}
 issue_no_relay(receiver,'offline',3000)
 prepare_required(receiver,['member'],11002,3,'digest3')
 assert receiver['pending']['required']=={'offline','member'}
@@ -144,7 +144,7 @@ rejects(commit_required,receiver)
 assert receiver['mode']=='NO_RELAY_REQUIRED'
 rejects(acknowledge_required,receiver,'offline',(2,'old-digest'))
 # Sender reconnects, persists cap, acknowledges, then loses activation notice.
-offline={'policies':{'aux':dict(p,mode='NO_RELAY_REQUIRED',member=False,until=20000)},'wal':[],'outcomes':{}}
+offline={'policies':{'aux':dict(p,mode='NO_RELAY_REQUIRED',member=False,until=20000)},'wal':[],'outcomes':{},'admission_history_known':True}
 ack=stage_withdrawal(offline,'aux',receiver['pending'])
 acknowledge_required(receiver,'offline',ack)
 commit_required(receiver)
@@ -164,10 +164,10 @@ offline['policies']['aux'].update(generation=3,mode='RELAY_REQUIRED',member=True
 assert admit(offline,'new-member',['aux'],11002)==2
 rejects(admit,offline,'later-cap',['aux'],12000)
 # Final holder-set recheck catches a concurrent/inconsistent issuance ledger.
-r={'mode':'NO_RELAY_REQUIRED','holders':set(),'holder_skews':{},'pending':None}
+r={'mode':'NO_RELAY_REQUIRED','holders':set(),'holder_skews':{},'pending':None,'committed_history_known':True}
 prepare_required(r,['member'],11002,3,'digest3');acknowledge_required(r,'member',(3,'digest3'))
 r['holders'].add('unexpected')
 rejects(commit_required,r)
 rejects(activate_required,['member'],11002,1000,6000,['member'],['offline'])
 assert activate_required(['member'],11002,1000,6000,['member','offline'],['offline'])['mode']=='RELAY_REQUIRED'
-print('CoreDRP settlement-policy-v4 financial hardening: OK')
+print('CoreDRP settlement-policy-v5 financial hardening: OK')

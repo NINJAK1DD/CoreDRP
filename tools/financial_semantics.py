@@ -1,6 +1,6 @@
 # Copyright 2026 Rob Cooke
 # SPDX-License-Identifier: Apache-2.0
-"""Executable Profile 1.1 settlement-policy v4 algorithms; registries are normative."""
+"""Executable Profile 1.1 settlement-policy v5 algorithms; registries are normative."""
 from fractions import Fraction
 import hashlib
 import re
@@ -103,8 +103,12 @@ def admit(state, request, scopes, time):
         if not p['from'] <= time < p['until']: raise ValueError('policy coverage')
         if p['mode'] not in ('RELAY_REQUIRED','NO_RELAY_REQUIRED'): raise ValueError('unknown policy')
         if p['mode']=='RELAY_REQUIRED' and not p['member']: raise ValueError('membership')
-    sequence = len(state['wal'])+1
+    if not state.get('admission_history_known',False): raise ValueError('unknown admission history')
+    sequence = state.get('last_sequence',0)+1
     state['wal'].append((request,tuple(scopes),time))
+    state['last_sequence']=sequence
+    for q in scopes:
+        state.setdefault('admitted_through',{})[q]=max(time,state.get('admitted_through',{}).get(q,-1))
     state['outcomes'][request]=sequence
     return sequence
 
@@ -133,8 +137,9 @@ def effect_bytes(s, x):
             struct.pack('>BQ',x['lane'],x['sequence'])+ids[3]+struct.pack('>H',x['event_type'])+payload+lp(miner)+lp(amt))
 
 def participant_bytes(s,x):
+    validated_effect=effect_bytes(s,x)  # Validate sizes/types before any framing.
     return (struct.pack('>HB',1,x['kind'])+bytes.fromhex(x['identity'])+lp(x['miner'].encode())+
-            lp(x['amount'].encode('ascii'))+hashlib.sha256(effect_bytes(s,x)).digest())
+            lp(x['amount'].encode('ascii'))+hashlib.sha256(validated_effect).digest())
 
 def participant_digest(s,effects):
     if len({(x['kind'],bytes.fromhex(x['identity'])) for x in effects}) != len(effects): raise ValueError('duplicate participant')
@@ -152,6 +157,7 @@ def settlement_policy_source(scheme, adjustment_digest, params):
     return struct.pack('>HB',3,scheme)+adjustment_digest+struct.pack('>H',len(params))+b''.join(lp(k.encode('ascii'))+lp(params[k].encode('ascii')) for k in sorted(params))
 
 def allocate(selected, reward, finder=None, finder_percentage='0'):
+    if len({identity for identity,_,_ in selected})!=len(selected): raise ValueError('duplicate allocation identity')
     r=decimal(reward); p=decimal(finder_percentage)
     if not 0<=p<100 or (p and finder is None): raise ValueError('finder policy')
     total=sum((c for _,c,_ in selected),Fraction(0))
@@ -186,15 +192,19 @@ def issue_no_relay(receiver, sender, skew):
     receiver['holders'].add(sender)  # persisted BEFORE response, even if response is lost
     receiver['holder_skews'][sender]=max(skew,receiver['holder_skews'].get(sender,0))
 
-def prepare_required(receiver, members, effective, generation, digest):
+def prepare_required(receiver, members, effective, generation, digest, scope='aux'):
     if receiver.get('pending') is not None or not members: raise ValueError('transition conflict')
     receiver['pending']={'required':set(members)|receiver['holders'],'members':set(members),
-                         'effective':effective,'generation':generation,'digest':digest,'acks':set()}
+                         'effective':effective,'generation':generation,'digest':digest,'acks':set(),'scope':scope}
 
 def stage_withdrawal(sender, scope, pending):
     caps=sender.setdefault('admission_caps',{})
     cap=(pending['generation'],pending['effective'])
     if cap not in caps.setdefault(scope,[]): caps[scope].append(cap)
+    # Cap stays durable even on rejection: rollback cannot reopen old evidence.
+    if not sender.get('admission_history_known',False): raise ValueError('unknown admission history')
+    high=max([sender.get('admitted_through',{}).get(scope,-1)]+[t for _,qs,t in sender['wal'] if scope in qs])
+    if high>=pending['effective']: raise ValueError('historical admission crosses withdrawal')
     return (pending['generation'],pending['digest'])
 
 def acknowledge_required(receiver, sender, ack):
@@ -206,5 +216,8 @@ def commit_required(receiver):
     p=receiver['pending']
     if p['required']!=p['members']|receiver['holders'] or p['acks']!=p['required']:
         raise ValueError('missing holder acknowledgement')
+    if not receiver.get('committed_history_known',False): raise ValueError('unknown committed history')
+    if any(q==p['scope'] and t>=p['effective'] for (_,q),t in receiver.get('committed_through',{}).items()):
+        raise ValueError('committed history crosses withdrawal')
     receiver['mode']='RELAY_REQUIRED'
     receiver['pending']=None

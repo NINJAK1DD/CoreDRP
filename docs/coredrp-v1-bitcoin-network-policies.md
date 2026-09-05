@@ -61,3 +61,7 @@ A production configuration that names `synthetic-regtest` is invalid even if its
 `BIP141` classifies an exact zero-value coinbase output whose script begins `OP_RETURN 0x24 aa21a9ed <32-byte commitment>` and satisfies the complete BIP141 validation rules in the Miningcore semantics registry.
 
 Additional AuxPoW, sidechain, or chain-specific commitment classes require a new versioned policy definition and therefore change `bitcoin_network_policy_digest`. A sender declaration by itself can never authorize a class absent from this registry/policy.
+
+## Policy versus consensus
+
+The requirement that declared BIP141 commitment outputs have zero value is a CoreDRP Profile 1.1 policy restriction. It is not a Bitcoin consensus requirement that every witness-commitment output have zero value. Consensus-compatible blocks outside this profile policy are rejected as profile-incompatible evidence, not described as consensus-invalid solely for that reason.

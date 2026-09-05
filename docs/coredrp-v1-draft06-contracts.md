@@ -15,7 +15,7 @@ It incorporates these subregistries at the same normative authority tier:
 - `coredrp-v1-producer-lifecycle.md`;
 - `coredrp-v1-profile-transitions.md`;
 - `coredrp-v1-quarantine-safety.md`;
-- `coredrp-v1-validator-authorities.md`.
+- `coredrp-v1-validator-authorities.md`, `coredrp-v1-miningcore-requests.md`.
 
 Reference vectors/tools are lower authority.
 
@@ -28,18 +28,18 @@ Canonical source grammar remains:
 Legal values:
 
 - `payout_scheme`: 1 PPLNS, 2 PPLNSBF, 3 PROP, 4 PPS, 5 CUSTODIAL_SOLO, 6 DIRECT_SOLO;
-- `completeness_policy_version = 3`;
+- `completeness_policy_version = 4`;
 - `retention_policy_version = 1`;
 - `cross_sender_ordering_policy = 1`;
 - `admission_idempotency_policy_version = 3`;
 - `semantic_retry_threshold = 3`;
 - `max_admission_records_per_generation` in `1..100000000`.
 
-Reference `btc1` Mining source/digest (completeness policy 3):
+Reference `btc1` Mining source/digest (completeness policy 4):
 
-`000e636f72656472702e6d696e696e670000000100000001000462746331010007626974636f696e00076d61696e6e65740003000101000007d0000000fa00001388000000fa00003a980001d4c00003000f4240`
+`000e636f72656472702e6d696e696e670000000100000001000462746331010007626974636f696e00076d61696e6e65740004000101000007d0000000fa00001388000000fa00003a980001d4c00003000f4240`
 
-`2b24a20f3f4b60c050839a3f7e92741c765d54497db06efb1ac287eaa51b68b6`
+`deb1d84a84128c180a91e9bd13fe73bc8a5f46e5a88f2d23f2617cecd68f2ac2`
 
 ## 2. Miningcore Profile 1.1 canonical source
 
@@ -52,7 +52,7 @@ Legal values are exact:
 - `accounting_schema_version = 3` — strict ordinary Miningcore accounting compatibility, projection-local authorization/membership and non-block-only accounting;
 - `persistence_schema_version = 1`;
 - `direct_candidate_validation_version = 2`;
-- `settlement_policy_version = 4` — exact score/cutoff arithmetic, bound PPS liability, canonical effect identities, exact PoolId mapping, and financial safety hardening. Version 3 is historical and MUST NOT negotiate as version 4; the financial migration barrier applies.
+- `settlement_policy_version = 5` — exact score/cutoff arithmetic, bound PPS liability, canonical effect identities, exact PoolId mapping, canonical Miningcore requests, global accounting uniqueness, retained source/reward audit inputs, and financial safety hardening. Versions 3 and 4 are historical and MUST NOT negotiate as version 5; the financial migration barrier applies.
 
 Both digests MUST be exactly 32 bytes and recomputed from their normative registries for the Mining-selected network/payout configuration.
 
@@ -64,11 +64,11 @@ Reference `btc1` uses:
 
 Reference Miningcore source hex:
 
-`0012636f72656472702e6d696e696e67636f726500000001000000010004627463310000000300000001000200040f477ab81c34cfc8ec31e146bd86f6760554e7d803d9522c7b0e0e818f412e3a779cd6c162373a543660f304d11eab7b19faace462be46886833fd2fa025276a`
+`0012636f72656472702e6d696e696e67636f726500000001000000010004627463310000000300000001000200050f477ab81c34cfc8ec31e146bd86f6760554e7d803d9522c7b0e0e818f412e3a779cd6c162373a543660f304d11eab7b19faace462be46886833fd2fa025276a`
 
 SHA-256:
 
-`d48a0a0d88a10d4a9feef462f0ee9b8240122d9c05e21e8fdd3a4f21ac3c16b5`
+`6ecd5753448cc09f2ecda289a9b77b31b83dbc0391f83d402620f309f6b83979`
 
 ## 3. Clock composition
 

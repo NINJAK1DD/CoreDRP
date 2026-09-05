@@ -96,10 +96,10 @@ These numeric values are part of Mining Profile 1.1 semantics. Unknown values MU
 
 | Value | Meaning |
 |---:|---|
-| 3 | CoreDRP Mining completeness algorithm defined by Sections 8, 11 and `coredrp-v1-settlement-safety.md`, including conservative cross-sender skew coverage |
+| 4 | CoreDRP Mining completeness algorithm defined by Sections 8, 11 and `coredrp-v1-settlement-safety.md`, including conservative cross-sender skew coverage |
 | all others | unallocated for Mining 1.1; reject |
 
-Completeness policy 3 also requires sender-side payout-effect admission evidence and clean no-relay bootstrap. Version 2 is historical and cannot negotiate as version 3; use the financial migration barrier.
+Completeness policy 4 requires sender-side payout-effect admission evidence, clean no-relay bootstrap, durable all-history withdrawal guards, and canonical activated policy evidence. Versions 2 and 3 are historical and cannot negotiate as version 4; use the financial migration barrier.
 
 ### 7.3 retention_policy_version (`uint16`)
 

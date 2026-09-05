@@ -49,12 +49,17 @@ for x in D['clock_state_updates']:
   elif x.get('age_ms',0)>x['valid_for_ms']:got='UNKNOWN'
   elif not 1<=x['valid_for_ms']<=x['effective_expiry_ms']:got='CLOCK_CONTRACT_VIOLATION'
   elif x['reported_skew_ms']!=x['bound_skew_ms']:got='CLOCK_CONTRACT_VIOLATION'
+  elif (x.get('lower') is None)!=(x.get('upper') is None):got='MALFORMED_FRAME'
+  elif x.get('lower') is not None and x['lower']>x['upper']:got='MALFORMED_FRAME'
+  elif x['state'] in ('BAD','UNKNOWN') and x.get('lower') is not None:
+   from verify_policy_clock_vectors import interval_class
+   got=x['state'] if interval_class(x)==x['state'] else 'CLOCK_CONTRACT_VIOLATION'
   elif x['state']=='GOOD' and not (-x['bound_skew_ms']<=x['lower']<=x['upper']<=x['bound_skew_ms']):got='CLOCK_CONTRACT_VIOLATION'
   else:got=x['state']
  assert got==x['expected'],x
 MAX_T=253402300799999
 for x in D['time_cases']:
- if x['case_kind']=='overflow_b_plus_2s':got='REJECT_OVERFLOW' if x['B']>(2**63-1)-2*x['S'] else 'ACCEPT'
+ if x['case_kind']=='overflow_b_plus_2s':got='REJECT_OVERFLOW' if not (0<=x['B']<=253402300799999 and 0<=x['S']<=2**32-1 and x['B']<=253402300799999-2*x['S']) else 'ACCEPT'
  else:got='ACCEPT' if 0<=x['event_time']<=MAX_T else 'REJECT'
  assert got==x['expected'],x
 for x in D['scope_contract_ownership']:

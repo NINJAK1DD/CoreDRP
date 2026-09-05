@@ -1,0 +1,374 @@
+{
+  "MiningShareRequestV1": [
+    {
+      "name": "block_height",
+      "type": "u64"
+    },
+    {
+      "name": "miner",
+      "type": "utf8"
+    },
+    {
+      "name": "worker",
+      "type": "utf8"
+    },
+    {
+      "name": "user_agent",
+      "type": "utf8"
+    },
+    {
+      "name": "difficulty",
+      "type": "f64"
+    },
+    {
+      "name": "achieved_share_difficulty",
+      "type": "f64"
+    },
+    {
+      "name": "actual_difficulty",
+      "type": "f64"
+    },
+    {
+      "name": "network_difficulty",
+      "type": "f64"
+    },
+    {
+      "name": "source_ip",
+      "type": "utf8"
+    },
+    {
+      "name": "source",
+      "type": "utf8"
+    },
+    {
+      "name": "session_id",
+      "type": "utf8"
+    },
+    {
+      "name": "is_block_candidate",
+      "type": "bool"
+    },
+    {
+      "name": "candidate_hash_hex",
+      "type": "?bytes"
+    },
+    {
+      "name": "candidate_kind",
+      "type": "?utf8"
+    },
+    {
+      "name": "transaction_confirmation_data",
+      "type": "?utf8"
+    },
+    {
+      "name": "block_reward",
+      "type": "?ascii"
+    }
+  ],
+  "ProjectionRequestV1": [
+    {
+      "name": "scope",
+      "type": "bytes"
+    },
+    {
+      "name": "share",
+      "type": "MiningShareRequestV1"
+    },
+    {
+      "name": "accounting_id",
+      "type": "uuid16"
+    },
+    {
+      "name": "accounting_role",
+      "type": "u8"
+    },
+    {
+      "name": "reward_basis_satoshis",
+      "type": "i64"
+    },
+    {
+      "name": "pps_calculated_amount",
+      "type": "?ascii"
+    },
+    {
+      "name": "block_only",
+      "type": "bool"
+    },
+    {
+      "name": "block_record_emitted",
+      "type": "bool"
+    },
+    {
+      "name": "statistical_record_emitted",
+      "type": "bool"
+    },
+    {
+      "name": "preserve_created",
+      "type": "bool"
+    }
+  ],
+  "MiningcoreAccountingShareRequestV1": [
+    {
+      "name": "primary",
+      "type": "ProjectionRequestV1"
+    },
+    {
+      "name": "paired",
+      "type": "?ProjectionRequestV1"
+    }
+  ],
+  "DirectRecipientRequestV1": [
+    {
+      "name": "address",
+      "type": "?utf8"
+    },
+    {
+      "name": "script_pub_key",
+      "type": "bytes"
+    },
+    {
+      "name": "amount_satoshis",
+      "type": "i64"
+    }
+  ],
+  "CommitmentRequestV1": [
+    {
+      "name": "output_index",
+      "type": "u32"
+    },
+    {
+      "name": "script_pub_key",
+      "type": "bytes"
+    }
+  ],
+  "BitcoinDirectCoinbaseCandidateRequestV1": [
+    {
+      "name": "block_height",
+      "type": "u64"
+    },
+    {
+      "name": "block_hash",
+      "type": "hash32"
+    },
+    {
+      "name": "coinbase_txid",
+      "type": "hash32"
+    },
+    {
+      "name": "serialized_block",
+      "type": "bytes"
+    },
+    {
+      "name": "gross_reward_satoshis",
+      "type": "i64"
+    },
+    {
+      "name": "miner_script_pub_key",
+      "type": "bytes"
+    },
+    {
+      "name": "miner_reward_satoshis",
+      "type": "i64"
+    },
+    {
+      "name": "recipients",
+      "type": "array:DirectRecipientRequestV1"
+    },
+    {
+      "name": "miner",
+      "type": "utf8"
+    },
+    {
+      "name": "worker",
+      "type": "utf8"
+    },
+    {
+      "name": "candidate_id",
+      "type": "uuid16"
+    },
+    {
+      "name": "submission_state",
+      "type": "u8"
+    },
+    {
+      "name": "consensus_commitments",
+      "type": "array:CommitmentRequestV1"
+    }
+  ],
+  "CandidateStateUpdateRequestV1": [
+    {
+      "name": "candidate_id",
+      "type": "uuid16"
+    },
+    {
+      "name": "state",
+      "type": "u8"
+    },
+    {
+      "name": "submission_attempts",
+      "type": "u32"
+    },
+    {
+      "name": "definitive_misses",
+      "type": "u32"
+    },
+    {
+      "name": "last_attempt_unix_ms",
+      "type": "?i64"
+    }
+  ],
+  "DeductionV1": [
+    {
+      "name": "destination",
+      "type": "bytes"
+    },
+    {
+      "name": "amount",
+      "type": "ascii"
+    }
+  ],
+  "SettlementInputV1": [
+    {
+      "name": "block_hash",
+      "type": "hash32"
+    },
+    {
+      "name": "block_height",
+      "type": "u64"
+    },
+    {
+      "name": "gross_reward",
+      "type": "ascii"
+    },
+    {
+      "name": "deductions",
+      "type": "array:DeductionV1"
+    },
+    {
+      "name": "distributable_reward",
+      "type": "ascii"
+    },
+    {
+      "name": "finder_accounting_id",
+      "type": "?uuid16"
+    },
+    {
+      "name": "finder_percentage",
+      "type": "ascii"
+    }
+  ],
+  "AuditEventV1": [
+    {
+      "name": "event_time",
+      "type": "i64"
+    },
+    {
+      "name": "sender",
+      "type": "uuid16"
+    },
+    {
+      "name": "sequence",
+      "type": "u64"
+    },
+    {
+      "name": "relay",
+      "type": "uuid16"
+    },
+    {
+      "name": "epoch",
+      "type": "uuid16"
+    },
+    {
+      "name": "lane",
+      "type": "u8"
+    },
+    {
+      "name": "event_type",
+      "type": "u16"
+    },
+    {
+      "name": "scope",
+      "type": "bytes"
+    },
+    {
+      "name": "previous_chain_hash",
+      "type": "hash32"
+    },
+    {
+      "name": "chain_hash",
+      "type": "hash32"
+    },
+    {
+      "name": "payload",
+      "type": "bytes"
+    }
+  ],
+  "SettlementAuditBundleV1": [
+    {
+      "name": "summary_hash",
+      "type": "hash32"
+    },
+    {
+      "name": "inputs",
+      "type": "SettlementInputV1"
+    },
+    {
+      "name": "events",
+      "type": "array:AuditEventV1"
+    }
+  ],
+  "ActivatedPolicyEvidenceV1": [
+    {
+      "name": "receiver",
+      "type": "uuid16"
+    },
+    {
+      "name": "incarnation",
+      "type": "uuid16"
+    },
+    {
+      "name": "sender",
+      "type": "uuid16"
+    },
+    {
+      "name": "scope",
+      "type": "bytes"
+    },
+    {
+      "name": "generation",
+      "type": "u64"
+    },
+    {
+      "name": "valid_from",
+      "type": "i64"
+    },
+    {
+      "name": "valid_until",
+      "type": "?i64"
+    },
+    {
+      "name": "mode",
+      "type": "u8"
+    },
+    {
+      "name": "mining_contract",
+      "type": "hash32"
+    },
+    {
+      "name": "miningcore_contract",
+      "type": "?hash32"
+    },
+    {
+      "name": "admin_id",
+      "type": "uuid16"
+    },
+    {
+      "name": "admin_digest",
+      "type": "hash32"
+    },
+    {
+      "name": "state_version",
+      "type": "u64"
+    }
+  ]
+}
