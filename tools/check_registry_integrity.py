@@ -5,7 +5,7 @@ R=Path(__file__).resolve().parents[1]
 required={
  'docs/coredrp-mining-v1-semantics.md':['Draft 0.6','completeness_policy_version','B + 2*S','(sender_id, lane_id, scope, producer_id)','1024 registered producer IDs','PayoutSafeThrough(scope)'],
  'docs/coredrp-miningcore-v1-semantics.md':['Draft 0.6','accounting_schema_version','bytes','paired.scope != primary.scope','accounting_id','settlement_scheme_policy_digest32','Payout-significant quarantine'],
- 'docs/coredrp-v1-clock-state.md':['Draft 0.6','effective multi-scope lane policy','SENDER_PROCESSING_LIMIT','deterministically BAD','RECOVERING'],
+ 'docs/coredrp-v1-clock-state.md':['Draft 0.6','Effective multi-scope lane policy','SENDER_PROCESSING_LIMIT','deterministically BAD','RECOVERING'],
  'docs/coredrp-v1-temporal-policy.md':['Draft 0.6','RequiredStagingSender','applicable_clock_uncertainty_ms','scope_safety_origin_unix_ms','PolicyEvidenceV1','CORRECT_MEMBERSHIP_END'],
  'docs/coredrp-v1-settlement-safety.md':['Draft 0.6','SettlementSafe','SettlementPruneSafe','scope_safety_origin_unix_ms','RESOLVED_WAIVED','PayoutSafeThrough'],
  'docs/coredrp-v1-settlement-scheme-policies.md':['Draft 0.6','settlement_scheme_policy_digest32','PPLNSBF','block_finder_percentage'],
