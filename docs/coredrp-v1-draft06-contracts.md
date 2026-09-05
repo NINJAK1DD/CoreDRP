@@ -67,7 +67,7 @@ Reference Miningcore source hex:
 
 SHA-256:
 
-`2bded7fc35e478999d00b0d9089bb6fc280f255458b70e64649826273a48a801`
+`789656aeb1b8d523d1fd3a0000cbdf65f388ce27569c77ae7ff7b3fe306e2905`
 
 ## 3. Clock composition
 
