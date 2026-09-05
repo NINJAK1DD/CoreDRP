@@ -26,15 +26,9 @@ The first policy generation is a special deterministic bootstrap transition:
 - `RequiredStagingSender` for this `NO_POLICY -> initial mode` transition is the empty set because no membership interval is permitted before the origin;
 - the bootstrap transition is exempt from the two `PayoutSafeThrough` comparisons in Section 5 because no prior payout frontier exists; every other staging, digest, generation, authorization, audit, future-effective, and atomicity rule still applies.
 
-On successful atomic bootstrap commit, the receiver durably initializes:
+On successful atomic bootstrap commit, the receiver durably initializes `PayoutSafeThrough(scope) = scope_safety_origin_unix_ms - 1` as the empty-proven-interval predecessor marker defined by the settlement registry.
 
-`PayoutSafeThrough(scope) = scope_safety_origin_unix_ms - 1`.
-
-This subtraction is exact signed control-state arithmetic. If the origin is Unix millisecond `0`, the initialized control value is `-1`. This value is **not** a payout-safety claim before the origin. It is the canonical predecessor marker representing the empty proven interval `[scope_safety_origin_unix_ms, PayoutSafeThrough(scope)]`. Core production event-time limits do not apply to this one control-state predecessor marker.
-
-After any payout-safe point at or after the origin is proven, `PayoutSafeThrough(scope) >= scope_safety_origin_unix_ms` and has its normal contiguous-frontier meaning. `SafePruneThrough` MUST NOT be initialized or advanced beyond this bootstrap predecessor value until its own safety predicates are satisfied.
-
-No other first-generation action is valid. In particular a first-generation MEMBERSHIP_START or MEMBERSHIP_END is `ADMIN_ACTION_CONFLICT`; initial mode must exist first. Later membership starts and mode changes use normal generation and Section 5 rules.
+No other first-generation action is valid.
 
 Each durable policy record stores at least scope, generation, effective time, action/correction kind, affected sender when applicable, prior/new evidence, ADMIN identity/digest, receiver state version, required/observed staging acknowledgements, activation result and audit reason.
 
@@ -107,15 +101,23 @@ This grammar is distinct from reconciliation `PolicyEvidenceV1`.
 
 Ordinary policy activation uses one exact conservative function.
 
-For proposed change `(Q,change,T)`, let `R = RequiredStagingSender(Q,change,T)`. For each `S in R`, let `Skew(S,Q,T)` be the `effective_permitted_skew_ms` produced by the active multi-scope clock reducer for S's lane at the boundary, after applying the proposed scope-set/policy change where relevant.
+For proposed change `(Q,change,T)`, let `R = RequiredStagingSender(Q,change,T)`.
+
+For each `S in R`, define `SkewTransition(S,Q,change,T)`:
+
+- **activation/addition** (`MEMBERSHIP_START` or `NO_RELAY_REQUIRED -> RELAY_REQUIRED`): use the effective multi-scope permitted skew after applying the proposed scope-set/policy change;
+- **deactivation/removal** (`MEMBERSHIP_END` or `RELAY_REQUIRED -> NO_RELAY_REQUIRED`): use the effective multi-scope permitted skew immediately before `T` while `Q` is still active/required. If a post-change effective skew also exists, use `max(pre_change_skew, post_change_skew)`; the value MUST never become undefined merely because `Q` was the sender's last active clock-governed scope;
+- bootstrap with `R` empty: no skew value is required.
+
+This freezes the last-scope removal edge: a sender's final membership/RELAY_REQUIRED scope can be ended using its pre-change clock contract rather than failing because the post-change reducer has no active scope.
 
 Define:
 
-`applicable_clock_uncertainty_ms(Q,change,T) = 2 * max(Skew(S,Q,T) for S in R)`.
+`applicable_clock_uncertainty_ms(Q,change,T) = 2 * max(SkewTransition(S,Q,change,T) for S in R)`.
 
 If `R` is empty, uncertainty is `0`.
 
-The multiplication and addition are checked against the Core production-time range. Unknown/missing clock contract for any required sender fails closed; implementations MUST NOT substitute a receiver-local default.
+The multiplication and addition are checked against the Core production-time range. Unknown/missing **required pre-change or post-change** clock contract data under the rules above fails closed; implementations MUST NOT substitute a receiver-local default.
 
 This is intentionally the same symmetric `2S` uncertainty used by cross-sender completeness. A tighter observed offset interval does not reduce ordinary ADMIN policy separation in Profile 1.1.
 
@@ -128,7 +130,7 @@ Ordinary changes MUST be future-effective and satisfy:
 - `effective_unix_ms > PayoutSafeThrough(scope)`;
 - `effective_unix_ms > PayoutSafeThrough(scope) + applicable_clock_uncertainty_ms(scope,change,effective_unix_ms)`.
 
-The initialized bootstrap predecessor value from Section 1.1 is a valid input to these comparisons, but it never implies safety before the origin. Overflow fails closed.
+Overflow fails closed.
 
 For membership end at `valid_until`, trusted completeness through at least `valid_until - 1` is required for already-required relay history, otherwise explicit uncertainty is created and the operation is not an ordinary clean end.
 
