@@ -1,5 +1,5 @@
 {
-  "format":"CoreDRP/1 Draft 0.5 state-machine conformance vectors",
+  "format":"CoreDRP/1 Draft 0.6 state-machine conformance vectors",
   "reconnect_cases":[
     {"case_kind":"bootstrap","C":0,"R":0,"T":0,"E":1,"same_receiver_id":true,"same_incarnation":true,"approved_epoch":true,"genesis_hash_match":true,"hash_match":true,"receiver_hash_verifiable":true,"expected":"RESUME"},
     {"case_kind":"bootstrap","C":0,"R":0,"T":0,"E":1,"same_receiver_id":true,"same_incarnation":true,"approved_epoch":true,"genesis_hash_match":false,"hash_match":true,"receiver_hash_verifiable":true,"expected":"SPLIT_LOG"},
@@ -17,16 +17,12 @@
     {"case_kind":"repin_lower_gap","approved":true,"C":8,"R":10,"T":12,"lost_acked_history_retained":false,"hash_verifiable":true,"hash_match":true,"expected":"RECOVERY_GAP"},
     {"case_kind":"repin_split","approved":true,"C":10,"R":10,"T":12,"hash_verifiable":true,"hash_match":false,"expected":"SPLIT_LOG"}
   ],
-  "admission_idempotency":[
-    {"case_kind":"same_key_same_digest","sender":"A","lane":0,"key":"share-A","stored_digest":"aa","retry_digest":"aa","first_relay_event_id":"0191b001-0000-7000-8000-00000000d001","retry_relay_event_id":"0191b001-0000-7000-8000-00000000d001","age_ms":31536000000,"expected":"RETURN_ORIGINAL"},
-    {"case_kind":"same_key_different_digest","sender":"A","lane":0,"key":"share-A","stored_digest":"aa","retry_digest":"bb","expected":"IDEMPOTENCY_KEY_CONFLICT"},
-    {"case_kind":"same_key_different_lane","sender":"A","lane":1,"key":"share-A","stored_lane":0,"expected":"DISTINCT_NAMESPACE"}
-  ],
   "epoch_cases":[
     {"case_kind":"normal","C":100,"R":100,"T":100,"final_sequence":100,"hashes_match":true,"expected":"ALLOW_NORMAL_TRANSITION"},
     {"case_kind":"normal","C":90,"R":90,"T":100,"final_sequence":100,"hashes_match":true,"expected":"DENY_NORMAL_TRANSITION"},
-    {"case_kind":"exceptional_exact","C":90,"R":90,"T":100,"gap_first":91,"gap_last":100,"gap_scope":"btc1","scope_attribution_complete":true,"expected":"ALLOW_EXCEPTIONAL_TRANSITION"},
-    {"case_kind":"exceptional_wildcard","C":90,"R":90,"T":100,"gap_first":91,"gap_last":100,"scope_attribution_complete":false,"gap_scope":"*","expected":"ALLOW_EXCEPTIONAL_TRANSITION"},
+    {"case_kind":"exceptional_exact","C":90,"R":90,"T":100,"gap_first":91,"gap_last":100,"scope_attribution_complete":true,"gap_scope":"btc1","atomic_gap_and_retire":true,"expected":"ALLOW_EXCEPTIONAL_TRANSITION"},
+    {"case_kind":"exceptional_missing_atomic_gap","C":90,"R":90,"T":100,"gap_first":91,"gap_last":100,"scope_attribution_complete":true,"gap_scope":"btc1","atomic_gap_and_retire":false,"expected":"DENY_EXCEPTIONAL_TRANSITION"},
+    {"case_kind":"exceptional_wildcard","C":90,"R":90,"T":100,"gap_first":91,"gap_last":100,"scope_attribution_complete":false,"gap_scope":"*","atomic_gap_and_retire":true,"expected":"ALLOW_EXCEPTIONAL_TRANSITION"},
     {"case_kind":"retired_import","retired_epoch":true,"chain_verified":true,"range_verified":true,"effects_idempotent":true,"expected":"RESOLVED_RECONCILED"}
   ],
   "membership_event_cases":[
@@ -38,22 +34,19 @@
     {"case_kind":"all_covered_authorized","covered_scopes":[{"scope":"btc1","authorized":true},{"scope":"doge1","authorized":true}],"expected":"ACCEPT"},
     {"case_kind":"one_scope_revoked","covered_scopes":[{"scope":"btc1","authorized":true},{"scope":"doge1","authorized":false}],"expected":"UNAUTHORIZED_SCOPE"}
   ],
-  "gap_relevance_cases":[
-    {"case_kind":"exact_scope","gap_scope":"btc1","query_scope":"btc1","expected_relevant":true},
-    {"case_kind":"exact_other","gap_scope":"btc1","query_scope":"doge1","expected_relevant":false},
-    {"case_kind":"wildcard","gap_scope":"*","query_scope":"doge1","expected_relevant":true}
-  ],
-  "clock_cases":[
-    {"case_kind":"good","L":-500,"U":700,"S":2000,"expected":"GOOD"},
-    {"case_kind":"bad","L":2500,"U":3000,"S":2000,"expected":"BAD"},
-    {"case_kind":"unknown","L":1500,"U":2500,"S":2000,"expected":"UNKNOWN"},
-    {"case_kind":"expired","no_sample":true,"expected":"UNKNOWN"}
+  "gap_payout_cases":[
+    {"case_kind":"unresolved","status":"UNRESOLVED","expected_blocks_payout":true,"can_advance_frontier":false},
+    {"case_kind":"reconciled","status":"RESOLVED_RECONCILED","expected_blocks_payout":false,"can_advance_frontier":true},
+    {"case_kind":"waived","status":"RESOLVED_WAIVED","expected_blocks_payout":true,"can_advance_frontier":false,"settlement_override_allowed":true}
   ],
   "clock_state_updates":[
-    {"case_kind":"fresh_good","generation":4,"last_generation":3,"state":"GOOD","age_ms":1000,"valid_for_ms":15000,"expected":"GOOD"},
-    {"case_kind":"expired_good","generation":4,"last_generation":3,"state":"GOOD","age_ms":16000,"valid_for_ms":15000,"expected":"UNKNOWN"},
-    {"case_kind":"new_bad_overrides","generation":5,"last_generation":4,"state":"BAD","age_ms":100,"valid_for_ms":15000,"expected":"BAD"},
-    {"case_kind":"replayed_generation","generation":4,"last_generation":4,"state":"GOOD","age_ms":100,"valid_for_ms":15000,"expected":"IGNORE"}
+    {"case_kind":"fresh_good","new_stream":false,"generation":4,"last_generation":3,"state":"GOOD","valid_for_ms":15000,"effective_expiry_ms":15000,"reported_skew_ms":2000,"bound_skew_ms":2000,"lower":-500,"upper":700,"expected":"GOOD"},
+    {"case_kind":"expired_good","new_stream":false,"generation":4,"last_generation":3,"state":"GOOD","age_ms":16000,"valid_for_ms":15000,"effective_expiry_ms":15000,"reported_skew_ms":2000,"bound_skew_ms":2000,"lower":-500,"upper":700,"expected":"UNKNOWN"},
+    {"case_kind":"loosened_skew","new_stream":false,"generation":4,"last_generation":3,"state":"GOOD","valid_for_ms":15000,"effective_expiry_ms":15000,"reported_skew_ms":5000,"bound_skew_ms":2000,"lower":-500,"upper":700,"expected":"CLOCK_CONTRACT_VIOLATION"},
+    {"case_kind":"good_bounds_outside","new_stream":false,"generation":4,"last_generation":3,"state":"GOOD","valid_for_ms":15000,"effective_expiry_ms":15000,"reported_skew_ms":2000,"bound_skew_ms":2000,"lower":-2500,"upper":700,"expected":"CLOCK_CONTRACT_VIOLATION"},
+    {"case_kind":"bad_expiry_latched","previous_state":"BAD","evidence_expired":true,"expected":"RECOVERING"},
+    {"case_kind":"bad_recovery_three_good","previous_state":"BAD","fresh_good_count":3,"spans_probe_interval":true,"utc_not_behind":true,"expected":"GOOD"},
+    {"case_kind":"new_stream_generation_reset","new_stream":true,"generation":1,"last_generation_previous_stream":99,"state":"UNKNOWN","valid_for_ms":1000,"effective_expiry_ms":15000,"reported_skew_ms":2000,"bound_skew_ms":2000,"expected":"UNKNOWN"}
   ],
   "time_cases":[
     {"case_kind":"valid_epoch_ms","event_time":1788541200000,"expected":"ACCEPT"},
@@ -67,10 +60,15 @@
     {"case_kind":"accounting_complete","event_type":"0x0200","has_mining":true,"has_miningcore":true,"expected":"ACCEPT"}
   ],
   "flow_control":{"fixed_event_charge":32,"events":[{"payload_len":10,"scope_len":64},{"payload_len":0,"scope_len":65535}],"expected_charge":65673,"window_bytes_zero_pauses":true,"window_events_zero_pauses":true},
-  "membership_interval_cases":[
-    {"case_kind":"inside","from":1000,"until":2000,"T":1999,"expected":true},
-    {"case_kind":"exclusive_end","from":1000,"until":2000,"T":2000,"expected":false},
-    {"case_kind":"deactivation_final_required","from":1000,"until":2000,"final_checkpoint":1999,"expected":true}
+  "temporal_policy_cases":[
+    {"case_kind":"future","payout_safe_through":10000,"effective":12000,"clock_uncertainty":1000,"expected":"ACCEPT"},
+    {"case_kind":"retroactive_ordinary","payout_safe_through":10000,"effective":9000,"clock_uncertainty":1000,"expected":"ADMIN_ACTION_CONFLICT"},
+    {"case_kind":"within_uncertainty","payout_safe_through":10000,"effective":10500,"clock_uncertainty":1000,"expected":"ADMIN_ACTION_CONFLICT"},
+    {"case_kind":"retroactive_reconciliation","payout_safe_through":10000,"effective":9000,"reconciliation":true,"expected":"RECORD_UNCERTAINTY_AND_BLOCK_ADVANCE"}
+  ],
+  "payout_evidence_cases":[
+    {"case_kind":"receiver_committed_no_sender_ack","receiver_checkpoint_committed":true,"sender_ack_remembered":false,"membership":true,"clock":true,"gap_status":"NONE","expected":true},
+    {"case_kind":"sender_ack_no_receiver_commit","receiver_checkpoint_committed":false,"sender_ack_remembered":true,"membership":true,"clock":true,"gap_status":"NONE","expected":false}
   ],
   "metadata":{"copyright":"Copyright © 2026 Rob Cooke","original_author":"Rob Cooke","license":"Apache-2.0"}
 }
