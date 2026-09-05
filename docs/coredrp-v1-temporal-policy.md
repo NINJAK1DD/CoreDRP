@@ -12,6 +12,30 @@ Policy generation MUST NOT wrap. At `2^64-1`, no further ordinary activation is 
 
 Each scope's first explicit temporal policy generation also creates immutable `scope_safety_origin_unix_ms`, equal to the earliest boundary from which payout safety is intended to be proven. The origin MUST NOT be moved backward by an ordinary policy change. Retroactive repair uses the reconciliation path and never invents safety before the durable origin.
 
+### 1.1 Bootstrap generation and initial payout frontier
+
+A scope with no durable temporal-policy generation is in `NO_POLICY` state. In that state `PayoutSafeThrough(scope)` is not yet defined and MUST NOT be consulted as an integer or replaced with an implementation-local sentinel.
+
+The first policy generation is a special deterministic bootstrap transition:
+
+- `policy_generation` MUST equal `1`;
+- there MUST be no prior membership interval and no prior completeness-mode interval for the scope;
+- the action MUST establish the initial completeness mode using `COMPLETENESS_MODE_CHANGE` from `NO_POLICY` to exactly `RELAY_REQUIRED` or `NO_RELAY_REQUIRED`;
+- `effective_unix_ms` MUST equal the new immutable `scope_safety_origin_unix_ms` exactly;
+- the origin MUST be within the Core production event-time range;
+- `RequiredStagingSender` for this `NO_POLICY -> initial mode` transition is the empty set because no membership interval is permitted before the origin;
+- the bootstrap transition is exempt from the two `PayoutSafeThrough` comparisons in Section 5 because no prior payout frontier exists; every other staging, digest, generation, authorization, audit, future-effective, and atomicity rule still applies.
+
+On successful atomic bootstrap commit, the receiver durably initializes:
+
+`PayoutSafeThrough(scope) = scope_safety_origin_unix_ms - 1`.
+
+This subtraction is exact signed control-state arithmetic. If the origin is Unix millisecond `0`, the initialized control value is `-1`. This value is **not** a payout-safety claim before the origin. It is the canonical predecessor marker representing the empty proven interval `[scope_safety_origin_unix_ms, PayoutSafeThrough(scope)]`. Core production event-time limits do not apply to this one control-state predecessor marker.
+
+After any payout-safe point at or after the origin is proven, `PayoutSafeThrough(scope) >= scope_safety_origin_unix_ms` and has its normal contiguous-frontier meaning. `SafePruneThrough` MUST NOT be initialized or advanced beyond this bootstrap predecessor value until its own safety predicates are satisfied.
+
+No other first-generation action is valid. In particular a first-generation MEMBERSHIP_START or MEMBERSHIP_END is `ADMIN_ACTION_CONFLICT`; initial mode must exist first. Later membership starts and mode changes use normal generation and Section 5 rules.
+
 Each durable policy record stores at least scope, generation, effective time, action/correction kind, affected sender when applicable, prior/new evidence, ADMIN identity/digest, receiver state version, required/observed staging acknowledgements, activation result and audit reason.
 
 ## 2. Deterministic sender staging requirement
@@ -20,6 +44,7 @@ Core wire does not distribute Mining temporal policy. Policy distribution is an 
 
 Define `RequiredStagingSender(Q, change, T)` from durable policy state immediately before the proposed boundary `T`:
 
+- bootstrap `COMPLETENESS_MODE_CHANGE(Q, NO_POLICY -> initial_mode, T)`: exactly the empty set;
 - `MEMBERSHIP_START(Q,S,T)`: exactly `{S}`;
 - `MEMBERSHIP_END(Q,S,T)`: exactly `{S}`;
 - `COMPLETENESS_MODE_CHANGE(Q, RELAY_REQUIRED -> NO_RELAY_REQUIRED, T)`: every sender whose membership interval for `Q` contains `T-1`;
@@ -96,12 +121,14 @@ This is intentionally the same symmetric `2S` uncertainty used by cross-sender c
 
 ## 5. Ordinary effective-time restrictions
 
+This section applies to policy generations `>= 2`. Generation 1 uses the bootstrap rule in Section 1.1.
+
 Ordinary changes MUST be future-effective and satisfy:
 
 - `effective_unix_ms > PayoutSafeThrough(scope)`;
 - `effective_unix_ms > PayoutSafeThrough(scope) + applicable_clock_uncertainty_ms(scope,change,effective_unix_ms)`.
 
-Overflow fails closed.
+The initialized bootstrap predecessor value from Section 1.1 is a valid input to these comparisons, but it never implies safety before the origin. Overflow fails closed.
 
 For membership end at `valid_until`, trusted completeness through at least `valid_until - 1` is required for already-required relay history, otherwise explicit uncertainty is created and the operation is not an ordinary clean end.
 
