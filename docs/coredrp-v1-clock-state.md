@@ -3,7 +3,7 @@
 **Status:** Draft 0.6 normative registry  
 **Wire:** Core 1.1
 
-This registry is incorporated by `CoreDRP-1-SPEC-0.6.md` and defines the complete accepted-state matrix for `ClockStateUpdate`. Values not permitted below are rejected before they can influence admission, checkpoints, or payout safety.
+This registry is incorporated through the normative `coredrp-v1-draft06-contracts.md` registry, which is itself incorporated by Section 1 of `CoreDRP-1-SPEC-0.6.md`. It defines the complete accepted-state matrix for `ClockStateUpdate`. Values not permitted below are rejected before they can influence admission, checkpoints, or payout safety.
 
 ## 1. Common structural rules
 
