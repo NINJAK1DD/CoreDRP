@@ -6,8 +6,8 @@ required={
  'docs/coredrp-mining-v1-semantics.md':['Draft 0.6','completeness_policy_version','B + 2*S','(sender_id, lane_id, scope, producer_id)','1024 registered producer IDs','PayoutSafeThrough(scope)'],
  'docs/coredrp-miningcore-v1-semantics.md':['Draft 0.6','accounting_schema_version','bytes','paired.scope != primary.scope','accounting_id','settlement_scheme_policy_digest32','Payout-significant quarantine'],
  'docs/coredrp-v1-clock-state.md':['Draft 0.6','Effective multi-scope lane policy','SENDER_PROCESSING_LIMIT','deterministically BAD','RECOVERING'],
- 'docs/coredrp-v1-temporal-policy.md':['Draft 0.6','RequiredStagingSender','applicable_clock_uncertainty_ms','scope_safety_origin_unix_ms','PolicyEvidenceV1','CORRECT_MEMBERSHIP_END'],
- 'docs/coredrp-v1-settlement-safety.md':['Draft 0.6','SettlementSafe','SettlementPruneSafe','scope_safety_origin_unix_ms','RESOLVED_WAIVED','PayoutSafeThrough'],
+ 'docs/coredrp-v1-temporal-policy.md':['Draft 0.6','RequiredStagingSender','applicable_clock_uncertainty_ms','scope_safety_origin_unix_ms','NO_POLICY','scope_safety_origin_unix_ms - 1','PolicyEvidenceV1','CORRECT_MEMBERSHIP_END'],
+ 'docs/coredrp-v1-settlement-safety.md':['Draft 0.6','SettlementSafe','SettlementPruneSafe','scope_safety_origin_unix_ms','empty proven interval','RESOLVED_WAIVED','PayoutSafeThrough'],
  'docs/coredrp-v1-settlement-scheme-policies.md':['Draft 0.6','settlement_scheme_policy_digest32','PPLNSBF','block_finder_percentage'],
  'docs/coredrp-v1-producer-lifecycle.md':['Draft 0.6','producer tombstone','MUST NEVER be registered again','semantic-contract digest'],
  'docs/coredrp-v1-profile-transitions.md':['Draft 0.6','FINANCIALLY_INCOMPATIBLE','Financial migration barrier','active producer generation'],
@@ -34,12 +34,15 @@ vector_required={
  'docs/coredrp-v1-accounting-vectors.json':'accounting-schema-v2',
  'docs/coredrp-v1-bitcoin-profile-vectors.json':'Miningcore 1.1 Bitcoin candidate',
  'docs/coredrp-v1-draft06-vectors.json':'profile-freeze',
+ 'docs/coredrp-v1-policy-clock-vectors.json':'current temporal bootstrap and ClockStateUpdate lifecycle vectors',
  'docs/coredrp-v1-wire-structure.json':None,
 }
 for rel,sentinel in vector_required.items():
  p=R/rel
  if not p.exists():print('missing current conformance artifact:',rel,file=sys.stderr);failed=True;continue
  if sentinel and sentinel not in p.read_text(encoding='utf-8'):print('current conformance artifact missing sentinel:',rel,sentinel,file=sys.stderr);failed=True
+if not (R/'tools/verify_policy_clock_vectors.py').exists():
+ print('stateful clock/bootstrap verifier missing',file=sys.stderr);failed=True
 wp=R/'docs/coredrp-v1-wire-structure.json'
 if wp.exists():
  try:w=json.loads(wp.read_text())
