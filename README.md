@@ -9,21 +9,22 @@ Originally developed for the Miningcore project.
 
 CoreDRP is a durable, authenticated, replayable event-relay protocol with a domain-independent Core, reusable Mining Profile, and Miningcore Integration Profile.
 
-The current working specification is **Draft 0.3**, incorporating four independent adversarial passes over the public Draft 0.1 and Draft 0.2 repository state.
+The current working specification is **Draft 0.4**, incorporating six independent adversarial review passes over the public Draft 0.1 through Draft 0.3 repository states.
 
 Start with [`docs/CoreDRP-1-SPEC.md`](docs/CoreDRP-1-SPEC.md).
 
 ## Core guarantees
 
-- sender-side durable admission before application success, with retry-safe local admission identity;
+- sender-side durable admission before application success, with domain-separated retry-safe admission identity and bounded idempotency retention;
 - at-least-once replay with cumulative ACK only after durable receiver commit;
-- epoch-scoped per-event cryptographic history with temporal/completeness floors inherited across epochs;
-- deterministic reconnect/rollback/split-log handling;
+- epoch-scoped cryptographic history with explicit initial approval, fully drained normal rollover, and gap-recording exceptional abandonment;
+- deterministic reconnect precedence including receiver logical identity, database incarnation, rollback, split-log and bootstrap-genesis checks;
 - sender and receiver single-writer fencing;
-- explicit quarantine without rewriting immutable admitted events or laundering completeness gaps;
-- clock-bounded completeness checkpoints;
-- fail-closed Mining membership, `PayoutSafe` and `SafePruneThrough` semantics;
-- deterministic cross-sender mining accounting order;
+- immutable event quarantine without rewriting admitted bytes or laundering completeness gaps;
+- conservative clock-bound classification with strictest-policy aggregation across scopes;
+- fail-closed temporal Mining membership/completeness-mode policy, `PayoutSafe` and `SafePruneThrough` semantics;
+- deterministic cross-sender accounting order (not a claim of physical cross-sender causality);
+- full Bitcoin direct-candidate structural evidence checks, including transaction Merkle roots and SegWit witness commitments;
 - local mining `submitblock` never waits on the recorder.
 
 ## Layering
@@ -36,7 +37,7 @@ Mining Profile
 Miningcore Integration
 ```
 
-CI enforces this dependency direction and checks specification integrity, the complete protobuf wire surface, registries, cryptographic/contract/ADMIN vectors, state-machine vectors, profile and Bitcoin evidence semantics, independent C# vectors, protobuf compilation/linting, and positive plus deliberately-negative TLA+ model checks.
+CI enforces this dependency direction and checks specification integrity, complete protobuf syntax/package/wire compatibility, error/event/metric registries, cryptographic/contract/admission/ADMIN vectors, state-machine decisions, executed negative profile/accounting cases, legacy and SegWit Bitcoin evidence, independent C# vectors, protobuf compilation/linting, and positive plus deliberately-negative TLA+ model checks.
 
 ## Licensing and attribution
 
