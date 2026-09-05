@@ -31,8 +31,8 @@ jobs:
       - name: Prove realistic TLA+ mutations are detected
         run: |
           python3 tools/mutate_tla.py
-          declare -A expected=( [prune]=PruneSafe [ack]=AckSafe [drain]=NormalTransitionDrained )
-          for m in prune ack drain; do
+          declare -A expected=( [prune]=PruneSafe [ack]=AckSafe [drain]=NormalTransitionDrained [payout]=PayoutEvidenceSafe )
+          for m in prune ack drain payout; do
             set +e
             java -XX:+UseParallelGC -jar .build/tla2tools.jar -config model/CoreDRP.cfg .build/mutations/$m/CoreDRP.tla > .build/tla-$m.log 2>&1
             rc=$?
