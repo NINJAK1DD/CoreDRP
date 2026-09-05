@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from pathlib import Path
 import hashlib,json,struct
+from verify_policy_clock_vectors import verify as verify_policy_clock
 R=Path(__file__).resolve().parents[1]
 D=json.loads((R/'docs/coredrp-v1-draft06-vectors.json').read_text())
 H=lambda b:hashlib.sha256(b).digest();u16=lambda n:struct.pack('>H',n);u32=lambda n:struct.pack('>I',n)
@@ -52,7 +53,8 @@ for x in D['idempotency_generation_cases']:
  else:raise AssertionError(x)
  assert got==x['expected'],x
 
-# Deterministic clock classification families.
+# Deterministic clock classification families remain in the general corpus,
+# while the full stateful lifecycle corpus is executed below.
 for x in D['clock_state_cases']:
  state,reason=x['state'],x['reason']
  if reason=='SENDER_PROCESSING_LIMIT' and x.get('processing_exceeded'):
@@ -100,5 +102,10 @@ for x in D['temporal_reconciliation_cases']:
  if x['correction_kind']==3:valid=valid and x['same_sender'] and x['same_valid_from']
  got='ACCEPT' if valid else 'ADMIN_ACTION_CONFLICT'
  assert got==x['expected'],x
+
+# Execute the dedicated current stateful clock/bootstrap corpus as part of this
+# Draft 0.6 gate so regressions in generation, lifetime, grace or recovery cannot
+# be hidden by the compact classification cases above.
+verify_policy_clock()
 
 print('CoreDRP Draft 0.6 profile-freeze vectors: OK')
