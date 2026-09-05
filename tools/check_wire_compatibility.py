@@ -88,8 +88,9 @@ for path,msgs in B['messages'].items():
   got=oneofs(path,msg)
   if got!=expected:die(f'{path}:{msg} oneofs changed: expected {expected}, got {got}')
 for path,expected in B.get('services',{}).items():
+ expected_fq={f'{PKG[path]}.{name}':rpcs for name,rpcs in expected.items()}
  got=services(path)
- if got!=expected:die(f'{path} services changed: expected {expected}, got {got}')
+ if got!=expected_fq:die(f'{path} services changed: expected {expected_fq}, got {got}')
 for path,items in B.get('reserved',{}).items():
  enum_names=set(B.get('enums',{}).get(path,{}))
  for name,expected in items.items():
