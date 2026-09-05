@@ -3,7 +3,6 @@
 syntax = "proto3";
 package coredrp.miningcore.v1;
 option csharp_namespace = "CoreDRP.Miningcore.V1";
-import "protocol/coredrp-v1.proto";
 import "profiles/mining/coredrp-mining-v1.proto";
 
 message MiningcoreAccountingShareProjection {
@@ -18,10 +17,13 @@ message MiningcoreAccountingShareProjection {
 message MiningcoreAccountingShareEvent { MiningcoreAccountingShareProjection primary = 1; optional MiningcoreAccountingShareProjection paired = 2; reserved 3 to 15; }
 enum AccountingRole { ACCOUNTING_ROLE_UNSPECIFIED = 0; ACCOUNTING_ROLE_SINGLE = 1; ACCOUNTING_ROLE_PARENT = 2; ACCOUNTING_ROLE_AUXILIARY = 3; }
 message DirectRecipient { optional string address = 1; bytes script_pub_key = 2; int64 amount_satoshis = 3; reserved 4 to 15; }
+message ConsensusCommitmentOutput { uint32 output_index = 1; bytes script_pub_key = 2; reserved 3 to 15; }
 message BitcoinDirectCoinbaseCandidate {
   uint64 block_height = 1; bytes block_hash = 2; bytes coinbase_txid = 3; bytes serialized_block = 4;
   int64 gross_reward_satoshis = 5; bytes miner_script_pub_key = 6; int64 miner_reward_satoshis = 7; repeated DirectRecipient recipients = 8;
-  string miner = 9; string worker = 10; bytes candidate_id = 11; CandidateSubmissionState submission_state = 12; reserved 13 to 31;
+  string miner = 9; string worker = 10; bytes candidate_id = 11; CandidateSubmissionState submission_state = 12;
+  repeated ConsensusCommitmentOutput consensus_commitments = 13;
+  reserved 14 to 31;
 }
 message CandidateStateUpdate { bytes candidate_id = 1; CandidateSubmissionState state = 2; uint32 submission_attempts = 3; uint32 definitive_misses = 4; optional int64 last_attempt_unix_ms = 5; reserved 6 to 15; }
 enum CandidateSubmissionState { CANDIDATE_SUBMISSION_STATE_UNSPECIFIED = 0; CANDIDATE_SUBMISSION_STATE_PREPARED = 1; CANDIDATE_SUBMISSION_STATE_SUBMITTED_UNCERTAIN = 2; CANDIDATE_SUBMISSION_STATE_OBSERVED_ACTIVE = 3; CANDIDATE_SUBMISSION_STATE_REJECTED = 4; CANDIDATE_SUBMISSION_STATE_QUARANTINED = 5; }
