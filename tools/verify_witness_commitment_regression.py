@@ -52,7 +52,7 @@ m.block_hash = block_hash_display
 # The mutated former commitment output is no longer consensus metadata. Account for it
 # explicitly as a zero-valued direct recipient so every other candidate consistency rule
 # can still pass if the witness-commitment requirement were accidentally removed.
-mutated_scripts = [script for value, script in txs[0]['outs'] if value == 0 and script[:6] == replacement]
+mutated_scripts = [bytes(script) for value, script in txs[0]['outs'] if value == 0 and script[:6] == replacement]
 assert len(mutated_scripts) == 1
 r = m.recipients.add(); r.script_pub_key = mutated_scripts[0]; r.amount_satoshis = 0
 
