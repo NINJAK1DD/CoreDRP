@@ -116,3 +116,7 @@ The audit record is never destructively pruned while any settlement/proof or ope
 ## 7. Pruning
 
 A reconciled quarantine may cease blocking settlement-specific pruning only after its corrected financial effect and proof record are durable. A waived quarantine's audit record is permanent for the lifetime of the financial history it affects, but it does not force unrelated later evidence outside every live dependency interval to be retained forever.
+
+## 6. Critical-lane recovery boundary
+
+`0x0201`/`0x0202` are intentionally waiver-only in Profile 1.1 as specified by the validator-authority registry. They MUST NOT be reconciled using the share-only authority or by coercing candidate evidence into `ReconciledEffectEvidenceV1`. Their uncertainty and retention/migration dependencies survive waiver.

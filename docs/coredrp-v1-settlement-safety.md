@@ -26,6 +26,7 @@ For a settlement/block boundary `B` and required sender symmetric skew bound `S`
 
 A gap, temporal-policy uncertainty, or payout-significant quarantine is relevant to settlement `K` iff its conservative affected time/range intersects `[A,B]` or the scheme-specific evidence dependency set for `K`.
 
+- `POLICY_RECONCILIATION_PENDING` relevant policy range/effect => `SettlementSafe` is false.
 - `UNRESOLVED` relevant uncertainty => `SettlementSafe` is false.
 - `RESOLVED_RECONCILED` => does not block once verified import/correction has restored all required effects/evidence.
 - `RESOLVED_WAIVED` => `SettlementSafe` remains false for an intersecting settlement.
@@ -55,7 +56,7 @@ A waived hole can permanently cap both contiguous scalars. That does **not** req
 Define `SettlementPruneSafe(Q, record_or_interval R)` as true only when all are true:
 
 1. every settlement whose dependency set includes `R` is final and has durable `SettlementSafe` proof or an explicit retention-preserving operational override;
-2. `R` does not intersect any `UNRESOLVED` or `RESOLVED_WAIVED` gap/quarantine/policy-audit range that itself must be retained;
+2. `R` does not intersect any `UNRESOLVED`, `RESOLVED_WAIVED`, or `POLICY_RECONCILIATION_PENDING` gap/quarantine/policy-audit range that itself must be retained;
 3. no live producer idempotency mapping, retired-epoch import, candidate-state proof, reconciliation, or other incorporated registry requires `R`;
 4. every proof that depended on `R` contains a valid `SettlementEvidenceSummaryV1` sufficient to survive destruction of the ordinary records;
 5. the scheme-specific retention rule permits destruction.
@@ -120,7 +121,23 @@ For kind 4:
 `|| uint16_be(amount_len) || amount_decimal_ascii`
 `|| effect_identity_digest32`.
 
-`accounting_id_uuid16` and `candidate_id_uuid16` use RFC 9562 bytes. `miner_utf8` is the exact Miningcore payout identity string used by the final effect, without normalization. `amount_decimal_ascii` is positive Mining `Decimal38Scale24` canonical ASCII. `effect_identity_digest32` is the immutable application-effect identity digest already stored by the final settlement/accounting transaction; it MUST bind the underlying accepted share/candidate/effect identity and final destination/amount semantics.
+`accounting_id_uuid16` and `candidate_id_uuid16` use nonzero RFC 9562 bytes. `miner_utf8` is the exact Miningcore payout identity string, 1–256 UTF-8 bytes without normalization. `amount_decimal_ascii` is nonnegative Mining `Decimal38Scale24` canonical ASCII (zero is required for a selected contribution that rounds to zero). One kind-1 participant represents **one accepted accounting UUID's contribution**, not an aggregated miner balance row. Multiple shares from the same miner MUST have separate participant records, with exact sum equal to that miner's final balance credit. Finder-only PPLNSBF contributions use the finder's accounting UUID. When one UUID contributes both window and finder reward these are combined into its single participant amount. Duplicate `(effect_kind, accounting_or_candidate_uuid16)` in one summary is invalid (compare decoded UUID bytes, never the casing of a hexadecimal spelling) even if amount/digest differs. Kinds 2–4 likewise represent one liability/winning-share/candidate identity; a representation needing multiple destinations per identity is not allocated and must retain ordinary evidence.
+
+`effect_identity_digest32 = SHA256(EffectIdentityV1_bytes)`; it is never a supplied opaque application hash. Exact bytes are:
+
+`uint16_be(1) || uint8(effect_kind)`
+`|| uint16_be(scope_len) || scope`
+`|| uint16_be(settlement_id_len) || settlement_id_bytes`
+`|| mining_scope_contract_digest32 || miningcore_scope_contract_digest32`
+`|| accounting_or_candidate_uuid16`
+`|| sender_uuid16 || epoch_uuid16 || uint8(lane) || uint64_be(sequence)`
+`|| relay_event_uuid16 || uint16_be(event_type) || payload_hash32`
+`|| uint16_be(miner_len) || miner_utf8`
+`|| uint16_be(amount_len) || amount_decimal_ascii`.
+
+Scope (1–64 Mining ASCII bytes), settlement ID (1–65535 exact opaque bytes), contracts, kind, identity, destination and amount MUST equal the enclosing summary/participant. Source sender/epoch/lane/sequence/relay ID/type/payload hash MUST equal the immutable accepted event that created this projection or candidate, not a later balance row or state update. All UUIDs are 16 RFC 9562 bytes; hashes are 32 bytes; lane is 0 for kinds 1–3 and 1 for kind 4; sequence is in `1..2^63-1`. Kinds 1–3 use `0x0200` and that projection's accounting ID; kind 4 uses `0x0201` and candidate ID. For non-Miningcore effects (`0x0100`) this representation is unallocated; retain ordinary evidence. Scope disambiguates paired projections sharing an accounting ID.
+
+The final transaction MUST validate these bindings against the original event and final allocation before persisting both `EffectIdentityV1_bytes` and participant bytes. Retain all EffectIdentity preimages alongside the canonical summary records through destructive pruning. An auditor MUST rederive each effect digest from these fields, check each binding and per-miner sum, and then reconstruct the component/summary digests. A self-consistent digest alone does not authenticate application truth: source acceptance and settlement proof still require their retained trust/audit evidence. Missing source or final-allocation validation prevents `SettlementPruneSafe`. This grammar is selected by settlement policy version 4; older summaries with opaque effect digests do not authorize new destructive pruning and cannot be upgraded without the underlying evidence.
 
 Construct every participant record, reject duplicate record bytes, sort the complete records lexicographically by raw bytes, then define:
 

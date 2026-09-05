@@ -96,8 +96,10 @@ These numeric values are part of Mining Profile 1.1 semantics. Unknown values MU
 
 | Value | Meaning |
 |---:|---|
-| 2 | CoreDRP Mining completeness algorithm defined by Sections 8, 11 and `coredrp-v1-settlement-safety.md`, including conservative cross-sender skew coverage |
+| 3 | CoreDRP Mining completeness algorithm defined by Sections 8, 11 and `coredrp-v1-settlement-safety.md`, including conservative cross-sender skew coverage |
 | all others | unallocated for Mining 1.1; reject |
+
+Completeness policy 3 also requires sender-side payout-effect admission evidence and clean no-relay bootstrap. Version 2 is historical and cannot negotiate as version 3; use the financial migration barrier.
 
 ### 7.3 retention_policy_version (`uint16`)
 
@@ -135,7 +137,14 @@ For **every** `Q in PayoutEffectScopes(E)` independently:
 
 - the sender MUST be transport-authorized for `Q`;
 - exact selected Mining scope contract must exist for `Q`;
+- an activated explicit completeness mode must cover `(Q,T)`; missing/unknown mode fails closed with `TEMPORAL_MEMBERSHIP_REQUIRED`;
 - if mode `(Q,T)` is `RELAY_REQUIRED`, durable temporal membership `(sender,Q,T)` MUST exist.
+
+Before assigning a Core sequence, extending the chain, writing a WAL record, consuming a new producer admission sequence or returning local admission success, the sender MUST derive the complete `PayoutEffectScopes(E)` from the immutable proposed payload. For each scope it MUST hold durable authenticated receiver authorization, the exact epoch scope-contract selections, and activated temporal-policy evidence covering the assigned event time. Missing policy, unknown mode, missing contract, denied authorization, or missing membership in `RELAY_REQUIRED` fails closed locally. An explicit `NO_RELAY_REQUIRED` record is required to admit without membership; a scope contract alone is not policy evidence. A staged but not activated generation is not sufficient.
+
+Policy is learned through authenticated out-of-band ADMIN distribution and `RequiredStagingSender` acknowledgements. A nonmember wishing to admit into a `NO_RELAY_REQUIRED` scope must explicitly obtain its activated policy history and be durably registered in `AdmissionPolicyHolders(Q)` before that evidence is issued. Required-mode activation stages every such holder as well as new members, including offline nonmembers, under temporal-policy Section 2. Before acknowledging staging, the sender durably caps superseded admission permission at the transition boundary even if activation confirmation is subsequently lost. Authorization and policy changes MUST serialize with sender admission; admission pins the authenticated evidence generation and exact assigned time until its WAL/idempotency transaction commits. The receiver must not silently revoke acceptance of already-admitted history; emergency revocation fails closed at the receiver and requires audited recovery. Offline admission requires durable evidence valid for the event time, never an assumption based on cached connection success.
+
+Local rejection reports the failing scope and reason to the producer, creates no immutable event and leaves the producer request identity retryable after policy/configuration repair. A retry of an already successful admission instead returns its original durable outcome, without admitting again or reinterpreting it under newer policy. Receiver-side validation remains mandatory and authoritative; this preflight does not authorize bypassing it.
 
 Missing transport authorization is `UNAUTHORIZED_SCOPE`. Missing required membership is `TEMPORAL_MEMBERSHIP_REQUIRED`. These failures are non-quarantinable and occur before application effects commit.
 

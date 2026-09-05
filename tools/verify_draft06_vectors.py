@@ -83,7 +83,7 @@ for x in D['staging_sender_cases']:
  k=x['case_kind']
  if k in ('membership_start','membership_end'):got=[x['sender']]
  elif k=='mode_required_to_none':got=sorted(x['members_t_minus_1'])
- elif k=='mode_none_to_required':got=sorted(x['members_t'])
+ elif k=='mode_none_to_required':got=sorted(set(x['members_t'])|set(x.get('admission_policy_holders',[]))) if x['members_t'] else 'ADMIN_ACTION_CONFLICT'
  else:raise AssertionError(x)
  assert got==x['expected'],x
 
@@ -128,7 +128,7 @@ for x in D['profile_transition_cases']:
  got='ALLOW' if not changed or x['old_state_closed'] else 'ADMIN_ACTION_CONFLICT'
  assert got==x['expected'],x
 for x in D['migration_closure_cases']:
- live=any(x[k] for k in ('live_window','pps_liability','candidate_live','unsafe_range','override_live','import_in_progress','producer_open','summary_missing','effect_mutable'))
+ live=any(x[k] for k in ('live_window','pps_liability','candidate_live','unsafe_range','override_live','import_in_progress','producer_open','summary_missing','effect_mutable','policy_pending'))
  assert (not live)==x['expected'],x
 
 # Temporal reconciliation cross-field constraints.

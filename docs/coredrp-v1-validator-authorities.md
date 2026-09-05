@@ -64,3 +64,7 @@ For Profile 1.1 the allowed reconciliation-authority set is exactly the digests 
 `22a09b0066b1b1e7fdd6258fc435ea4e4c7ad7aff8b0440915fec452abb88e04`.
 
 Implementations MUST compare ADMIN field 11 byte-for-byte with this registry before revalidation. Matching the digest identifies the normative authority algorithm; it does not by itself prove that the resulting financial effect is correct. The receiver must still execute revalidation and atomically apply the missing effects as required by `coredrp-v1-quarantine-safety.md`.
+
+## 4. Critical candidate quarantine limitation
+
+Profile 1.1 allocates no exact-revalidation authority or corrected-effect grammar for `0x0201` or `0x0202`. A quarantined direct candidate or candidate-state event is therefore waiver-only under this profile: a reconciliation attempt MUST return `ADMIN_ACTION_CONFLICT`, including when it supplies the allocated share authority digest. A waiver does not restore candidate validity, permit deletion of its evidence, satisfy `SettlementSafe`, or unblock a financial migration that depends on the candidate. Local consensus submission remains independent. Recovery with restored financial safety requires a future explicitly allocated authority/effect grammar and applicable migration rules; an operator flag or another candidate identity is not reconciliation.

@@ -29,6 +29,10 @@ For **every** accounting projection `P`, independently:
 
 The set of payout-relevant scopes written by one event is exactly `{primary.scope}` plus `paired.scope` when paired is present. Mining checkpoint coverage MUST include every such scope for which the sender has admitted payout-relevant effects during the epoch, subject to the temporal membership/mode and authorization rules in the Core/Mining specification. A nested auxiliary projection therefore cannot escape RequiredSender/completeness accounting.
 
+### 1.1 Exact PoolId mapping
+
+For every projection and candidate/state scope, `UTF8(PoolConfig.Id) == P.scope` (or the enclosing `Event.scope` for candidate/state events) byte-for-byte. The PoolId MUST satisfy the Mining 1–64 byte ASCII scope grammar. Case folding, aliases, trimming, Unicode normalization, fallback to the primary pool and receiver-local scope maps are forbidden. The configured pool lookup and all persistence/idempotency/balance keys MUST use that exact identity. Missing or mismatched PoolId fails negotiation/admission closed with `SEMANTIC_CONTRACT_MISMATCH`, before any effects or sender WAL admission. Parent and auxiliary projections each perform this check independently.
+
 ## 2. Frozen semantic-contract allocations
 
 Unknown values MUST fail scope-contract negotiation with `SEMANTIC_CONTRACT_MISMATCH`.
@@ -38,7 +42,7 @@ Unknown values MUST fail scope-contract negotiation with `SEMANTIC_CONTRACT_MISM
 | `accounting_schema_version` | 3 | projection-local scope + strict Miningcore accounting compatibility in Section 3 |
 | `persistence_schema_version` | 1 | atomic PostgreSQL receiver/effect persistence in Section 11 |
 | `direct_candidate_validation_version` | 2 | Bitcoin validation in Sections 6 and 10 plus bound network policy |
-| `settlement_policy_version` | 3 | resolved scheme/adjustment binding, pruning and quarantine rules in Sections 8–10 and incorporated registries |
+| `settlement_policy_version` | 4 | resolved scheme/adjustment binding, pruning and quarantine rules in Sections 8–10 and incorporated registries |
 
 All other values are unallocated for Miningcore Profile 1.1 and MUST be rejected.
 
@@ -87,7 +91,7 @@ All-zero UUID is invalid. Implementations MUST NOT hash, store or compare .NET `
 
 ### 3.2 PPS amount
 
-`pps_calculated_amount`, when present, MUST satisfy the exact Mining `Decimal38Scale24` grammar and be strictly positive. Because `accounting_id` is mandatory for all projections, PPS amount never creates an anonymous financial effect.
+For a PPS scope, `pps_calculated_amount` is REQUIRED and MUST equal `PPSLiabilityV1` in `coredrp-v1-settlement-scheme-policies.md` under the accepting scope contract. Both producer pre-admission and receiver semantic validation recompute that exact formula. For non-PPS scopes this field MUST be absent. Presence/absence, canonical amount, eligibility and exact equality are validation requirements; a positive amount alone is insufficient. A Miningcore integration MUST replace its live-configuration PPS validator with this contract-bound validator for CoreDRP effects. Because `accounting_id` is mandatory, PPS never creates an anonymous financial effect.
 
 Violations of Section 3 are `SEMANTIC_PAYLOAD_INVALID` except the authorization/membership controls in Section 1, which use their dedicated errors and are non-quarantinable.
 
