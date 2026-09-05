@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # Copyright 2026 Rob Cooke
 # SPDX-License-Identifier: Apache-2.0
-"""Reject unreviewed changes to the complete Draft 0.3 protobuf wire surface."""
+"""Reject unreviewed changes to the complete CoreDRP protobuf wire surface."""
 from pathlib import Path
 import json,re,sys
 R=Path(__file__).resolve().parents[1]
@@ -11,6 +11,10 @@ COMMENT_RE=re.compile(r'//.*?$|/\*.*?\*/',re.M|re.S)
 FIELD_RE=re.compile(r'(?<![\w.])(?:(optional|repeated)\s+)?([\w.]+)\s+(\w+)\s*=\s*(\d+)\s*;')
 def die(s):print('wire compatibility failure:',s,file=sys.stderr);raise SystemExit(1)
 def text(path):return COMMENT_RE.sub('',(R/path).read_text(encoding='utf-8'))
+def syntax(path):
+ t=text(path);m=re.search(r'\bsyntax\s*=\s*"([^"]+)"\s*;',t)
+ if not m:die(f'{path}: missing syntax declaration')
+ return m.group(1)
 def package(path):
  t=text(path);m=re.search(r'\bpackage\s+([\w.]+)\s*;',t)
  if not m:die(f'{path}: missing package declaration')
@@ -53,21 +57,23 @@ def services(path):
  t=text(path);pkg=package(path);out={}
  for name in re.findall(r'\bservice\s+(\w+)\s*\{',t):
   body=named_block(t,'service',name);rpcs={}
-  for rn,cs,inp,ss,outp in re.findall(r'\brpc\s+(\w+)\s*\(\s*(stream\s+)?([\w.]+)\s*\)\s*returns\s*\(\s*(stream\s+)?([\w.]+)\s*\)\s*;',body):rpcs[rn]=(('stream ' if cs else '')+inp+' -> '+('stream ' if ss else '')+outp)
+  for rn,cs,inp,ss,outp in re.findall(r'\brpc\s+(\w+)\s*\(\s*(stream\s+)?([\w.]+)\s*\)\s*returns\s*\(\s*(stream\s+)?([\w.]+)\s*\)\s*;',body):
+   rpcs[rn]=(('stream ' if cs else '')+inp+' -> '+('stream ' if ss else '')+outp)
   out[f'{pkg}.{name}']=rpcs
  return out
 def reserved(path,kind,name):
  body=named_block(text(path),kind,name)
  if body is None:return None
  vals=[]
- for x in re.findall(r'\breserved\s+([^;]+);',body):
-  vals += [re.sub(r'\s+',' ',p.strip()) for p in x.split(',')]
+ for x in re.findall(r'\breserved\s+([^;]+);',body):vals += [re.sub(r'\s+',' ',p.strip()) for p in x.split(',')]
  return vals
-# Package identities are part of the wire contract because they define fully qualified type/service names.
-for path,expected in PKG.items():
+paths=set(B['messages'])|set(B['enums'])|set(PKG)
+for path in paths:
+ if syntax(path)!='proto3':die(f'{path} syntax changed from proto3')
+ expected_pkg=PKG.get(path)
+ if expected_pkg is None:die(f'{path}: missing package baseline')
  got=package(path)
- if got!=expected:die(f'{path} package changed: expected {expected!r}, got {got!r}')
-# Exact baseline equality: additions as well as mutations require explicit baseline review.
+ if got!=expected_pkg:die(f'{path} package changed: expected {expected_pkg!r}, got {got!r}')
 for path,msgs in B['messages'].items():
  current_names=set(re.findall(r'\bmessage\s+(\w+)\s*\{',text(path)))
  if current_names!=set(msgs):die(f'{path} message set changed: expected {sorted(msgs)}, got {sorted(current_names)}')
@@ -80,14 +86,15 @@ for path,enums in B['enums'].items():
  for name,expected in enums.items():
   got=enum_values(path,name)
   if got!=expected:die(f'{path}:{name} enum values changed: expected {expected}, got {got}')
-# Compare oneof layout for every message, including messages that are expected to have no oneofs.
 for path,msgs in B['messages'].items():
  expected_by_message=B.get('oneofs',{}).get(path,{})
  for msg in msgs:
   expected=expected_by_message.get(msg,{})
   got=oneofs(path,msg)
   if got!=expected:die(f'{path}:{msg} oneofs changed: expected {expected}, got {got}')
-for path,expected in B.get('services',{}).items():
+# Freeze services in every protobuf file, including explicit absence in profile files.
+for path in paths:
+ expected=B.get('services',{}).get(path,{})
  expected_fq={f'{PKG[path]}.{name}':rpcs for name,rpcs in expected.items()}
  got=services(path)
  if got!=expected_fq:die(f'{path} services changed: expected {expected_fq}, got {got}')
