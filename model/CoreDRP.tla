@@ -47,12 +47,12 @@ Checkpoint ==
   /\ UNCHANGED <<receiverDurable,senderAck,pruned,writerHeld,activeEpoch,retiredEpochs,blocked,receiverObserved,pendingAdmission,faultPending,reentryAttempted,gapRecorded,gapTail,gapEpoch,transitionMode,oldDrainedAtTransition>>
 
 Commit ==
-  /\ ~blocked /\ faultPending = 0 /\ receiverDurable < walTail
+  /\ ~blocked /\ faultPending = 0 /\ ~GapFreezesCurrentEpoch /\ receiverDurable < walTail
   /\ receiverDurable' = receiverDurable + 1 /\ receiverObserved' = receiverDurable'
   /\ UNCHANGED <<walTail,senderAck,pruned,writerHeld,activeEpoch,retiredEpochs,checkpointFloor,lastEventTime,lastWasCheckpoint,blocked,pendingAdmission,faultPending,reentryAttempted,gapRecorded,gapTail,gapEpoch,transitionMode,oldDrainedAtTransition>>
 
 RememberAck ==
-  /\ ~blocked /\ faultPending = 0 /\ senderAck < receiverDurable
+  /\ ~blocked /\ faultPending = 0 /\ ~GapFreezesCurrentEpoch /\ senderAck < receiverDurable
   /\ senderAck' = receiverDurable
   /\ UNCHANGED <<walTail,receiverDurable,pruned,writerHeld,activeEpoch,retiredEpochs,checkpointFloor,lastEventTime,lastWasCheckpoint,blocked,receiverObserved,pendingAdmission,faultPending,reentryAttempted,gapRecorded,gapTail,gapEpoch,transitionMode,oldDrainedAtTransition>>
 
