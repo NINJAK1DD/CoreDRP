@@ -8,13 +8,17 @@ This registry is incorporated by `coredrp-v1-draft06-contracts.md` and is author
 
 Every Mining scope has a durable `scope_safety_origin_unix_ms`, created with its first explicit temporal policy generation. No payout-safety claim exists before that origin.
 
+Before that bootstrap generation commits, `PayoutSafeThrough(Q)` is undefined and MUST NOT be represented by an implementation-local numeric sentinel. The bootstrap transition in `coredrp-v1-temporal-policy.md` initializes the control-state value to exactly `scope_safety_origin_unix_ms - 1`.
+
+That predecessor value represents an **empty proven interval** only. While `PayoutSafeThrough(Q) < scope_safety_origin_unix_ms`, the set `[scope_safety_origin_unix_ms, PayoutSafeThrough(Q)]` is empty and no time is payout-safe by virtue of the scalar. It MUST NOT be interpreted as proving any millisecond before the origin. Once the frontier reaches the origin, it takes its ordinary contiguous meaning.
+
 For scope `Q`, settlement identifier `K`, and exact evidence interval `[A,B]` (inclusive millisecond boundaries after scheme-specific conversion), define:
 
 `SettlementSafe(Q,K,A,B)`
 
 as a durable receiver-side proof that every relay-dependent event which can affect settlement `K` lies within a time/range whose completeness requirements are satisfied and whose required evidence has not been invalidated or pruned.
 
-`PayoutSafeThrough(Q)` is the greatest contiguous millisecond boundary `T >= scope_safety_origin_unix_ms` such that every payout-relevant point in `[scope_safety_origin_unix_ms,T]` is PayoutSafe under the applicable temporal policy.
+After bootstrap, `PayoutSafeThrough(Q)` is the greatest contiguous millisecond boundary `T >= scope_safety_origin_unix_ms` such that every payout-relevant point in `[scope_safety_origin_unix_ms,T]` is PayoutSafe under the applicable temporal policy. The one allowed value below the origin is the bootstrap predecessor marker described above.
 
 A `RESOLVED_WAIVED` hole is not PayoutSafe. Therefore it prevents the scalar frontier from crossing the hole unless that uncertainty is later converted to `RESOLVED_RECONCILED` through verified evidence import. A waiver alone never changes this.
 
@@ -26,7 +30,7 @@ For a settlement/block boundary `B` and required sender symmetric skew bound `S`
 
 Checked arithmetic is mandatory. `B+2*S-1` is insufficient; `B+2*S` is sufficient only if every other membership, clock, gap, quarantine, anti-backdating, contract and policy gate is satisfied.
 
-A sender-specific interval proof may substitute only when it proves a required boundary that is no less conservative than `B+2*S` for every physical offset compatible with the fresh observation. The exact interval evidence and derivation parameters are retained with the settlement proof.
+A sender-specific interval proof may substitute only when it proves a required boundary that is no less conservative than `B+2S` for every physical offset compatible with the fresh observation. The exact interval evidence and derivation parameters are retained with the settlement proof.
 
 ## 3. Gap and quarantine relevance
 
@@ -57,6 +61,8 @@ Unknown scheme is invalid negotiation.
 `SafePruneThrough(Q)` is the monotonic contiguous destructive-prune frontier and MUST satisfy:
 
 `SafePruneThrough(Q) <= PayoutSafeThrough(Q)`.
+
+During bootstrap it may equal the same predecessor marker but MUST NOT advance until its normal proof predicates hold.
 
 A waived hole can permanently cap both contiguous scalars. That does **not** require unbounded retention of every unrelated later record.
 
