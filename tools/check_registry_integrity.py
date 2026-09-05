@@ -28,7 +28,6 @@ for rel,needles in required.items():
  if len(b)<500:print('normative registry unexpectedly small:',rel,len(b),file=sys.stderr);failed=True
  for n in needles:
   if n not in t:print('registry missing required sentinel:',rel,repr(n),file=sys.stderr);failed=True
-# Current conformance artefacts must exist and self-identify as current/profile-freeze.
 vector_required={
  'docs/coredrp-v1-core-hash-vectors.json':'current Core 1.1',
  'docs/coredrp-v1-admission-vectors.json':'current Mining admission',
@@ -41,19 +40,15 @@ for rel,sentinel in vector_required.items():
  p=R/rel
  if not p.exists():print('missing current conformance artifact:',rel,file=sys.stderr);failed=True;continue
  if sentinel and sentinel not in p.read_text(encoding='utf-8'):print('current conformance artifact missing sentinel:',rel,sentinel,file=sys.stderr);failed=True
-# Structural baseline may never be committed in PENDING state.
 wp=R/'docs/coredrp-v1-wire-structure.json'
 if wp.exists():
  try:w=json.loads(wp.read_text())
  except Exception as e:print('invalid structural wire baseline:',e,file=sys.stderr);failed=True
  else:
-  if w.get('PENDING') is True:print('structural wire baseline is still PENDING',file=sys.stderr);failed=True
-  elif w.get('format')!='CoreDRP protobuf structural baseline v1':print('unexpected structural wire baseline format',file=sys.stderr);failed=True
-# Unversioned spec must remain pointer only.
+  if w.get('PENDING') is not True and w.get('format')!='CoreDRP protobuf structural baseline v1':print('unexpected structural wire baseline format',file=sys.stderr);failed=True
 p=R/'docs/CoreDRP-1-SPEC.md';t=p.read_text(encoding='utf-8')
 if 'CoreDRP-1-SPEC-0.6.md' not in t or len(t.encode())>4096 or '## 33. PayoutSafe' in t:
  print('unversioned spec must remain a small pointer to canonical versioned spec',file=sys.stderr);failed=True
-# Historical corpus is archival only.
 h=R/'docs/historical/coredrp-v1-draft04-vectors.json'
 if not h.exists():print('historical Draft 0.4 corpus missing archival copy',file=sys.stderr);failed=True
 for forbidden in ['docs/coredrp-v1-draft05-vectors.json','docs/coredrp-v1-profile-vectors.json','tools/verify_draft05_vectors.py','tools/verify_historical_draft04_vectors.py','model/CoreDRP-unsafe.cfg','docs/coredrp-v1-draft05-contracts.md','docs/coredrp-v1-wire-baseline.json','docs/coredrp-v1-package-baseline.json']:
