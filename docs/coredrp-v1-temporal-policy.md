@@ -43,7 +43,7 @@ Sender-side sequencers consult the staged policy at admission time. At/after an 
 
 If staging cannot be completed, the ADMIN action fails with `ADMIN_ACTION_CONFLICT`; the old policy remains active. No correctly persisted event is intentionally created into a receiver policy that would deterministically reject it.
 
-## 3. Policy digest
+## 3. Policy staging digest and exact evidence encoding
 
 The staging digest is:
 
@@ -52,19 +52,40 @@ The staging digest is:
 where body is the canonical policy-generation body:
 
 `uint16_be(1)`
-`|| uint16_be(field_count)`
-`|| fields in strictly increasing field-id order`.
+`|| uint16_be(6)`
+`|| field(1, scope_bytes)`
+`|| field(2, uint64_be(policy_generation))`
+`|| field(3, int64_be(effective_unix_ms))`
+`|| field(4, uint8(policy_kind))`
+`|| field(5, sender_uuid16_or_zero_length)`
+`|| field(6, staged_policy_evidence_v1)`.
 
-Fields:
+`field(id,value) = uint16_be(id) || uint32_be(len(value)) || value` and fields are already in strictly increasing ID order.
 
-1. scope bytes;
-2. policy_generation uint64_be;
-3. effective_unix_ms int64_be;
-4. policy_kind uint8;
-5. optional sender UUID (0 bytes absent, 16 bytes present);
-6. canonical new-policy evidence bytes.
+Field 5 presence is represented by length: membership kinds MUST use exactly 16 RFC 9562 sender bytes; COMPLETENESS_MODE_CHANGE MUST use zero-length field 5. No alternate absent encoding is permitted.
 
-This digest is an out-of-band staging identity; it does not allocate a new wire ADMIN action. The `0x0106` domain-local discriminator is reserved by this registry solely for policy staging digests and MUST NOT be used as an executable receiver mutation without a future ADMIN-registry allocation.
+Field 6 is exact `StagedPolicyEvidenceV1`:
+
+`uint16_be(1)`
+`|| uint8(policy_kind)`
+`|| uint16_be(scope_len) || scope`
+`|| uint8(has_sender) || [sender_uuid16]`
+`|| int64_be(effective_unix_ms)`
+`|| uint8(has_mode) || [uint8(mode)]`
+`|| uint64_be(policy_generation)`.
+
+Presence and semantic rules are exhaustive:
+
+- MEMBERSHIP_START (`policy_kind=1`): `has_sender=1`, sender REQUIRED, `has_mode=0`; effect is to begin membership at `effective_unix_ms` for that sender/scope;
+- MEMBERSHIP_END (`policy_kind=2`): `has_sender=1`, sender REQUIRED, `has_mode=0`; effect is to end the currently open matching membership interval at `effective_unix_ms`;
+- COMPLETENESS_MODE_CHANGE (`policy_kind=3`): `has_sender=0`, sender absent, `has_mode=1`, mode REQUIRED and exactly `1=RELAY_REQUIRED` or `2=NO_RELAY_REQUIRED`; effect is to end the currently open mode interval and begin the requested mode at `effective_unix_ms`;
+- any other presence combination, mode value, policy kind, scope mismatch, generation mismatch, or effective-time mismatch is `MALFORMED_FRAME` for staged evidence and causes the receiver ADMIN transition to fail `ADMIN_ACTION_CONFLICT` rather than activate mismatched staged policy.
+
+The scope, policy kind, sender, effective time and generation encoded inside `StagedPolicyEvidenceV1` MUST equal fields 1–5 of the enclosing staging body exactly. This deliberate duplication is self-checking and prevents an acknowledgement digest from being replayed against a differently interpreted policy body.
+
+This staging grammar is distinct from reconciliation-only `PolicyEvidenceV1` in Section 7: staging describes one future ordinary operation; reconciliation evidence describes complete historical intervals before/after correction. Implementations MUST NOT substitute one grammar for the other.
+
+The `0x0106` domain-local discriminator is reserved by this registry solely for policy staging digests and MUST NOT be used as an executable receiver mutation without a future ADMIN-registry allocation.
 
 ## 4. Ordinary policy kinds
 
@@ -110,7 +131,7 @@ For membership end at `valid_until`, the sender and receiver require trusted com
 
 Membership corrections require sender UUID. Mode corrections require sender UUID absent.
 
-## 7. Canonical policy evidence bytes
+## 7. Canonical reconciliation policy evidence bytes
 
 `prior_policy_evidence` and `new_policy_evidence` are not opaque. They use canonical `PolicyEvidenceV1`:
 
@@ -150,16 +171,18 @@ The reconciliation ADMIN transaction:
 5. records the correction and historical affected interval;
 6. applies the corrected interval set while preserving append-only audit history;
 7. marks the affected historical range `POLICY_RECONCILIATION_PENDING`;
-8. blocks advancement of `PayoutSafeThrough(scope)` across or beyond the affected uncertainty until replay/reconciliation establishes the required evidence or an explicit waiver/settlement override is recorded;
+8. blocks advancement of `PayoutSafeThrough(scope)` across or beyond the affected uncertainty until verified replay/reconciliation establishes all completeness evidence required by the corrected policy;
 9. commits mutation, audit, state version and stored ADMIN result atomically.
+
+Only verified reconciliation that restores the required evidence clears the scalar-frontier reconciliation block for the affected range. `RESOLVED_WAIVED`, `GAP_WAIVER`, or `SETTLE_WITHOUT_FENCE_OVERRIDE` MUST NOT clear that scalar block and MUST NOT permit `PayoutSafeThrough` to cross unproven history. They may affect operational settlement handling only as defined by the settlement registry.
 
 A reconciliation never deletes the prior audit record. It supersedes its policy interpretation through an explicit correction edge.
 
 ## 9. Settlement consequences
 
-Reconciliation can restore normal safety only after required event/checkpoint evidence is re-evaluated under the corrected policy and any newly required missing history is reconciled.
+Reconciliation can restore normal scalar safety only after required event/checkpoint evidence is re-evaluated under the corrected policy and any newly required missing history is reconciled.
 
-A policy waiver/settlement override may permit a named operational settlement, but it does not rewrite historical `PayoutSafeThrough` or convert unproven history into safe evidence.
+A policy waiver or settlement override may permit a specifically named operational settlement where the settlement registry allows it, but it does not clear `POLICY_RECONCILIATION_PENDING`, rewrite historical `PayoutSafeThrough`, convert unproven history into safe evidence, or authorize destructive pruning across that uncertainty.
 
 ## 10. Sender staging and reconciliation
 
