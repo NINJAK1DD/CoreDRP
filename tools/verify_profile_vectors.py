@@ -127,8 +127,14 @@ def scriptnum_minimal(script):
  raw=script[1:1+ln]
  if len(raw)>1 and (raw[-1]&0x7f)==0 and not (raw[-2]&0x80):return None
  neg=raw[-1]&0x80;v=int.from_bytes(raw,'little') & ~(1<<(8*len(raw)-1));return -v if neg else v
+def commitment_class(script):
+ return 'BIP141' if len(script)>=38 and script[:6]==bytes.fromhex('6a24aa21a9ed') else None
 def validate_candidate(v):
  m=BC();m.ParseFromString(bytes.fromhex(v['payload_hex']));block=bytes(m.serialized_block)
+ params=v.get('network_parameters')
+ if not isinstance(params,dict) or params.get('direct_candidate_validation_version',0)<2:return False
+ activation=params.get('bip34_activation_height');allowed=set(params.get('allowed_consensus_commitment_classes',[]))
+ if not isinstance(activation,int) or activation<0:return False
  if len(block)<81 or len(block)>4_000_000:return False
  if h2(block[:80])[::-1]!=bytes(m.block_hash):return False
  count,pos=rv(block,80);txs=[]
@@ -140,8 +146,7 @@ def validate_candidate(v):
  if len(set(txids))!=len(txids):return False
  if txids[0][::-1]!=bytes(m.coinbase_txid):return False
  if merkle(txids)!=block[36:68]:return False
- network=v.get('network_id','mainnet')
- if network=='mainnet' and m.block_height>=227931 and scriptnum_minimal(coin['inputs'][0][2])!=m.block_height:return False
+ if m.block_height>=activation and scriptnum_minimal(coin['inputs'][0][2])!=m.block_height:return False
  magic=bytes.fromhex('6a24aa21a9ed');commitment_indices=[i for i,(value,script) in enumerate(coin['outs']) if len(script)>=38 and script[:6]==magic]
  witness=any(t['segwit'] for t in txs)
  if witness and not commitment_indices:return False
@@ -152,26 +157,34 @@ def validate_candidate(v):
   if coin['outs'][idx][1][6:38]!=expected:return False
  if sum(value for value,_ in coin['outs'])!=m.gross_reward_satoshis:return False
  direct=[(m.miner_reward_satoshis,bytes(m.miner_script_pub_key))]+[(r.amount_satoshis,bytes(r.script_pub_key)) for r in m.recipients]
- declared=[]
+ declared_by_index={}
  for c in m.consensus_commitments:
-  if c.output_index>=len(coin['outs']):return False
-  out=coin['outs'][c.output_index]
+  idx=c.output_index
+  if idx in declared_by_index or idx>=len(coin['outs']):return False
+  out=coin['outs'][idx]
   if out[1]!=bytes(c.script_pub_key) or out[0]!=0:return False
-  declared.append(out)
- recognized=[coin['outs'][i] for i in commitment_indices if coin['outs'][i][0]==0]
+  cls=commitment_class(out[1])
+  if cls is None or cls not in allowed:return False
+  declared_by_index[idx]=out
+ # Every BIP141-pattern output is an explicitly declared consensus output; there is no implicit fallback path.
+ if any(i not in declared_by_index for i in commitment_indices):return False
  remaining=list(coin['outs'])
- for o in direct+declared+recognized:
+ for o in direct+list(declared_by_index.values()):
   if o not in remaining:return False
   remaining.remove(o)
  if remaining:return False
  return bytes(m.candidate_id)==uuid.UUID(v['candidate_id']).bytes and m.submission_state==1
 assert validate_candidate(P['bitcoin_direct_candidate_legacy'])
 assert validate_candidate(P['bitcoin_direct_candidate_segwit'])
-# Executed negative evidence mutations.
+# Executed negative evidence mutations and policy regressions.
 def with_mutation(v,mut):
  x=copy.deepcopy(v);m=BC();m.ParseFromString(bytes.fromhex(x['payload_hex']));mut(m);x['payload_hex']=m.SerializeToString().hex();return x
 assert not validate_candidate(with_mutation(P['bitcoin_direct_candidate_legacy'],lambda m:setattr(m,'gross_reward_satoshis',m.gross_reward_satoshis+1)))
 assert not validate_candidate(with_mutation(P['bitcoin_direct_candidate_legacy'],lambda m:setattr(m,'block_hash',bytes([m.block_hash[0]^1])+m.block_hash[1:])))
+assert not validate_candidate(with_mutation(P['bitcoin_direct_candidate_segwit'],lambda m:m.ClearField('consensus_commitments')))
+assert not validate_candidate(with_mutation(P['bitcoin_direct_candidate_segwit'],lambda m:setattr(m,'block_height',m.block_height+1)))
+disallowed=copy.deepcopy(P['bitcoin_direct_candidate_segwit']);disallowed['network_parameters']['allowed_consensus_commitment_classes']=[];assert not validate_candidate(disallowed)
+dupe_decl=with_mutation(P['bitcoin_direct_candidate_segwit'],lambda m:m.consensus_commitments.add().CopyFrom(m.consensus_commitments[0]));assert not validate_candidate(dupe_decl)
 # Construct CVE-2012-2459 pair: [A,B,C] and [A,B,C,C] have same Merkle root, but duplicate txids MUST reject mutant.
 def simple_tx(tag):
  prev=bytes([tag])*32;return b'\x01\x00\x00\x00'+b'\x01'+prev+b'\x00\x00\x00\x00'+b'\x00'+b'\xff\xff\xff\xff'+b'\x01'+(1).to_bytes(8,'little')+b'\x01\x51'+b'\x00\x00\x00\x00'
