@@ -1,5 +1,27 @@
 # Changelog
 
+## Draft 0.4 — transition, negotiation and evidence hardening
+
+- required normal epoch transitions to fully drain receiver commit, sender remembered ACK and sender durable tail before retirement;
+- added explicit exceptional epoch abandonment that atomically records an unresolved gap for any accepted-but-unreplicated suffix;
+- added durable first-epoch approval/bootstrap semantics and permanent initial/normal/exceptional ADMIN action allocations;
+- separated stable logical receiver identity from receiver database incarnation and made unexpected receiver-ID change operator-intervention state;
+- made Mining completeness mode temporal audited policy rather than an immutable semantic-contract value;
+- version-qualified every scope semantic contract and made Mining/Miningcore profile-global semantic digests explicitly absent;
+- added a domain-separated local admission digest and contract-bound admission-idempotency retry horizon;
+- split invalid event placement from quarantinable payload-invalid events and separated atomic resource-limit failures from retryable aggregate pressure;
+- froze exact reconnect evaluation precedence, bootstrap genesis matching, unverifiable higher-receiver handling and receiver-ID behavior;
+- froze deterministic GOOD/BAD/UNKNOWN clock classification and strictest active multi-scope clock-policy aggregation;
+- defined WindowUpdate zero as pause and prohibited updates above handshake-negotiated maxima;
+- froze the Miningcore accounting projection validity matrix for SINGLE and PARENT/AUXILIARY effects;
+- required Bitcoin candidate validation to bind all transactions to the header Merkle root and validate BIP141 witness commitments;
+- added a synthetic SegWit direct-candidate vector and executed positive/negative share, accounting, placement and Bitcoin semantic checks;
+- expanded state vectors for reconnect overlaps, epoch draining/abandonment, receiver identity, clock state, idempotency horizon and WindowUpdate;
+- strengthened TLA+ so non-durable admission can be lost on crash, faults precede detection, retired re-entry is attempted/refused, and epoch transitions model drain/gap requirements;
+- promoted the Miningcore metrics registry to Draft 0.4 normative status and added CI consistency checks;
+- hardened protobuf compatibility checks for syntax/edition and unexpected services across all profile files;
+- extended layer-boundary vocabulary self-tests for txid/wtxid, UTXO, mempool, fee, ledger, SegWit and witness terminology.
+
 ## Draft 0.3 — cross-epoch and conformance hardening
 
 - made temporal/checkpoint completeness floors survive approved epoch transitions;
