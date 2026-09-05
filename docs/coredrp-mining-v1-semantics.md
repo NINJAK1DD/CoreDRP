@@ -1,6 +1,6 @@
 # CoreDRP Mining Profile 1.1 — Normative Semantics
 
-**Status:** Draft 0.6 normative registry  
+**Status:** Draft 0.6 freeze-completion normative registry  
 **Profile ID:** `coredrp.mining`  
 **Profile version:** 1.1  
 **Minimum Core:** 1.1
@@ -15,19 +15,21 @@ Mining scope is exact ASCII `[A-Za-z0-9._-]{1,64}`, case-sensitive, with no Unic
 
 After protobuf parsing and before durable acceptance:
 
-| Field | Maximum UTF-8/byte length |
-|---|---:|
-| `miner` | 256 |
-| `worker` | 128 |
-| `user_agent` | 256 |
-| `source_ip` | 64 |
-| `source` | 64 |
-| `session_id` | 128 |
-| `candidate_kind` | 64 |
-| `transaction_confirmation_data` | 4096 |
-| `candidate_hash` | 128 |
+| Field | Maximum UTF-8/byte length | Empty allowed |
+|---|---:|---|
+| `miner` | 256 | **NO** |
+| `worker` | 128 | YES |
+| `user_agent` | 256 | YES |
+| `source_ip` | 64 | YES |
+| `source` | 64 | YES |
+| `session_id` | 128 | YES |
+| `candidate_kind` | 64 | NO when present |
+| `transaction_confirmation_data` | 4096 | NO when present |
+| `candidate_hash` | 128 | NO when present |
 
-`miner` MUST be non-empty. Other strings MAY be empty only where application semantics permit it; no string is normalized before hashing, admission identity, storage, or comparison.
+Empty `worker` means an unlabelled worker. Empty `user_agent`, `source_ip`, `source`, or `session_id` means the upstream did not supply that optional descriptive value. These empty strings remain exact values; implementations MUST NOT substitute defaults before hashing, admission identity, storage, comparison, or accounting order.
+
+No string is Unicode-normalized before hashing, admission identity, storage, or comparison.
 
 ## 3. Difficulty semantics
 
@@ -57,7 +59,7 @@ If `is_block_candidate == false`, all of the following MUST be absent:
 - `transaction_confirmation_data`;
 - `block_reward`.
 
-If `is_block_candidate == true`, `candidate_hash` MUST be present and non-empty. The remaining candidate fields are optional but, when present, MUST satisfy their length and value grammars.
+If `is_block_candidate == true`, `candidate_hash` MUST be present and non-empty. The remaining candidate fields are optional but, when present, MUST be non-empty and satisfy their length/value grammars.
 
 A candidate-field combination that violates this matrix is `SEMANTIC_PAYLOAD_INVALID`; it is quarantinable only because placement and Core history are otherwise valid.
 
@@ -71,13 +73,74 @@ The representation has at most 38 decimal digits excluding the point, at most 24
 
 Fields whose semantics are positive-only MUST reject canonical zero. `block_reward`, when present on a block candidate, is positive-only.
 
-## 7. Temporal membership and completeness
+## 7. Frozen semantic-contract numeric allocations
+
+These numeric values are part of Mining Profile 1.1 semantics. Unknown values MUST fail scope-contract negotiation with `SEMANTIC_CONTRACT_MISMATCH`; implementations MUST NOT assign local meanings to unallocated values.
+
+### 7.1 payout_scheme (`uint8`)
+
+| Value | Meaning |
+|---:|---|
+| 0 | UNSPECIFIED — invalid for a selected scope contract |
+| 1 | PPLNS |
+| 2 | PPLNSBF |
+| 3 | PROP |
+| 4 | PPS |
+| 5 | CUSTODIAL_SOLO |
+| 6 | DIRECT_SOLO |
+| 7..255 | unallocated; reject |
+
+### 7.2 completeness_policy_version (`uint16`)
+
+| Value | Meaning |
+|---:|---|
+| 2 | CoreDRP Mining completeness algorithm defined by Sections 8, 11 and `coredrp-v1-settlement-safety.md`, including conservative cross-sender skew coverage |
+| all others | unallocated for Mining 1.1; reject |
+
+### 7.3 retention_policy_version (`uint16`)
+
+| Value | Meaning |
+|---:|---|
+| 1 | CoreDRP Mining retention algorithm defined by `coredrp-v1-settlement-safety.md` and Miningcore scheme rules |
+| all others | unallocated for Mining 1.1; reject |
+
+### 7.4 cross_sender_ordering_policy (`uint8`)
+
+| Value | Meaning |
+|---:|---|
+| 1 | canonical order in Section 9 |
+| all others | unallocated for Mining 1.1; reject |
+
+### 7.5 admission_idempotency_policy_version (`uint16`)
+
+| Value | Meaning |
+|---:|---|
+| 3 | scope-qualified bounded producer generations in Section 10 |
+| all others | unallocated for Mining 1.1; reject |
+
+`semantic_retry_threshold` is fixed at exactly 3 for Mining Profile 1.1 and is not a receiver-local tuning knob.
+
+## 8. Temporal membership and cross-sender completeness
 
 Membership intervals are half-open `[valid_from_unix_ms, valid_until_unix_ms)`. Under `RELAY_REQUIRED`, a payout-relevant lane-0 Mining event at time `T` requires durable membership for `(sender,scope,T)`; transport authorization alone is insufficient. Missing membership fails closed with `TEMPORAL_MEMBERSHIP_REQUIRED`.
 
-Ordinary membership/mode changes at or behind the protected payout frontier plus clock uncertainty are forbidden by Core Draft 0.6 Section 32. Retroactive correction uses the privileged temporal-policy reconciliation path and never silently rewrites already-proven history.
+For a settlement/block boundary `B` and symmetric maximum permitted skew `S` for a required sender, receiver completeness evidence MUST cover at least:
 
-## 8. Canonical cross-sender order
+`required_complete_through(B,S) = B + 2*S`.
+
+The addition and multiplication use checked arithmetic against the Core production-time range. Overflow fails closed and the boundary is not payout-safe.
+
+A tighter sender-specific offset interval MAY replace the `B+2S` requirement only if the implementation can prove from one fresh clock observation that its derived required boundary is **no less conservative** than the symmetric rule for all real event times compatible with that observation. The derivation and evidence MUST be durable with the settlement proof. Implementations that do not implement such a proof MUST use `B+2S` exactly.
+
+Conformance boundaries are:
+
+- checkpoint completeness `B+2S-1` => insufficient;
+- checkpoint completeness `B+2S` => sufficient, subject to all other safety gates;
+- any overflow while computing `B+2S` => fail closed.
+
+Ordinary membership/mode changes at or behind the protected payout frontier plus clock uncertainty are forbidden by the Core temporal-policy registry. Retroactive correction uses the privileged temporal-policy reconciliation path and never silently rewrites already-proven history.
+
+## 9. Canonical cross-sender order
 
 When Mining accounting requires a deterministic total order across senders, sort by:
 
@@ -88,30 +151,52 @@ When Mining accounting requires a deterministic total order across senders, sort
 
 Database insertion order MUST NOT be used as a tie-breaker. This is an accounting order, not a claim of physical cross-sender causality.
 
-## 9. Admission idempotency policy v3
+## 10. Admission idempotency policy v3
 
-Mining Profile 1.1 under Draft 0.6 uses `admission_idempotency_policy_version = 3` and binds `max_admission_records_per_generation` in the Mining semantic contract.
+Mining Profile 1.1 uses `admission_idempotency_policy_version = 3` and binds `max_admission_records_per_generation` in each Mining scope contract.
 
 The local caller admission key is structurally:
 
 `producer_id_uuid(16 RFC9562 bytes) || uint64_be(producer_generation) || uint64_be(admission_sequence)`.
 
-For each `(sender_id,lane_id,producer_id)`:
+The durable namespace is exactly:
+
+`(sender_id, lane_id, scope, producer_id)`.
+
+A producer identity therefore belongs to **one Mining scope within one sender/lane durability domain**. The same `producer_id` MUST NOT be reused for another scope under the same sender/lane. This makes the per-scope semantic-contract capacity unambiguous.
+
+For each namespace:
 
 - `producer_generation` starts at 1 and only the current active generation may accept new admissions;
 - new `admission_sequence` values are exactly monotonic (`last_new_sequence + 1`); retries reuse the original sequence;
 - while a generation is active, the sender retains the exact mapping from admission sequence to admission digest and original Core admission result;
-- the active generation MUST NOT exceed `max_admission_records_per_generation` records;
+- the active generation MUST NOT exceed that scope contract's `max_admission_records_per_generation` records;
 - before exceeding the bound, the producer MUST durably seal the generation after all in-flight admissions have durable outcomes;
-- sealing atomically advances a durable `retired_generation_high_water` and discards the detailed per-admission map for that sealed generation;
+- sealing atomically advances durable `retired_generation_high_water` and discards the detailed per-admission map for that sealed generation;
 - any request naming `producer_generation <= retired_generation_high_water` is rejected locally as `CALLER_ADMISSION_GENERATION_RETIRED` and can never create another Core event;
 - the next active generation is exactly `retired_generation_high_water + 1`.
 
-Thus detailed retry state is bounded to the active generation while the permanent no-double-mint property is represented by one compact high-water record per producer. A sealed-generation retry may no longer retrieve the historical response, but it can never mint a second financial event.
+### 10.1 Overflow
 
-The generation map, seal record, high-water record, and admitted WAL record cross a durability boundary before application success. Caller producer IDs MUST be stable within one durable producer identity and MUST NOT be shared by independent durability domains.
+Both `producer_generation` and `admission_sequence` are unsigned 64-bit counters and MUST NOT wrap.
 
-## 10. Canonical MiningShare caller-request bytes
+- Before incrementing `admission_sequence == 2^64-1`, the current generation MUST be sealed; no new admission may be created in that generation.
+- If `producer_generation == 2^64-1`, that producer identity is permanently exhausted after sealing and MUST NOT start another generation. A replacement producer UUID requires explicit durable producer registration.
+- Overflow or attempted wrap is a permanent local admission failure and MUST NOT create a Core event.
+
+### 10.2 Producer registry and bounded durable state
+
+Producer UUIDs are not caller-created free-form cardinality. Each sender maintains a durable authorized producer registry keyed by `(lane,scope,producer_id)`.
+
+Mining Profile 1.1 permits at most **1024 registered producer IDs per `(sender,lane,scope)`**. Registration/removal is an explicit local administrative operation; an admission request for an unregistered producer is rejected before WAL admission. Removing a producer never removes its retired-generation high-water evidence while that identity could be replayed from retained application state.
+
+A deployment requiring more than 1024 producers for one scope requires a future Mining profile revision or an explicitly partitioned sender identity.
+
+Thus detailed retry state is bounded to one active generation per registered producer and the permanent no-double-mint property is represented by one compact high-water record per producer.
+
+The generation map, seal record, high-water record, producer-registration record, and admitted WAL record cross a durability boundary before application success.
+
+## 11. Canonical MiningShare caller-request bytes
 
 Canonical request encoding version 1 is frozen here byte-for-byte. It is independent of protobuf serialization and is the `canonical_request_bytes` input to the Core admission digest.
 
@@ -150,6 +235,14 @@ The exact ordered grammar is:
 
 No protobuf serialization, JSON serialization, locale formatting, native-endian floating representation, omitted-default heuristic, field-number iteration, or field reordering is an acceptable substitute. Future caller-request grammars require an explicit Mining profile revision or explicitly versioned grammar; the request-encoding version used for an active admission mapping is durable with that mapping.
 
-## 11. Validation result
+## 12. Settlement safety and contiguous frontier
 
-A correctly placed event that violates this registry is `SEMANTIC_PAYLOAD_INVALID`. Structural range, lane, scope, contract-ownership, authorization, membership, clock, chain, and anti-backdating failures use their Core errors and are not converted into profile-semantic quarantine.
+The normative settlement/window rules are in `coredrp-v1-settlement-safety.md`.
+
+`PayoutSafeThrough(scope)` retains its literal meaning: every time in the contiguous interval up to that frontier is PayoutSafe under the applicable temporal policy. A `RESOLVED_WAIVED` hole therefore caps this scalar frontier until the hole is reconciled; implementations MUST NOT advance the scalar across a known non-safe interval.
+
+Windowed settlement is not forced to use that scalar as its only proof. `SettlementSafe(scope, settlement_id, evidence_from, evidence_through)` may prove a later settlement safe when its exact required evidence interval excludes every unresolved/waived hole. This predicate is auditable and settlement-specific; it MUST NOT mutate or imply a higher `PayoutSafeThrough` value.
+
+## 13. Validation result
+
+A correctly placed event that violates this registry is `SEMANTIC_PAYLOAD_INVALID`. Structural range, lane, scope, contract-ownership, authorization, membership, clock, chain, anti-backdating, producer-registration, or temporal-policy failures use their Core/profile control errors and are not converted into profile-semantic quarantine.
