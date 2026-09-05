@@ -1,0 +1,5 @@
+{
+  "protocol/coredrp-v1.proto": "coredrp.v1",
+  "profiles/mining/coredrp-mining-v1.proto": "coredrp.mining.v1",
+  "profiles/miningcore/coredrp-miningcore-v1.proto": "coredrp.miningcore.v1"
+}
