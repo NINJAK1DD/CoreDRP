@@ -6,6 +6,14 @@ D=json.loads((R/'docs/coredrp-v1-draft06-vectors.json').read_text())
 H=lambda b:hashlib.sha256(b).digest();u16=lambda n:struct.pack('>H',n);u32=lambda n:struct.pack('>I',n)
 def lp16(b):return u16(len(b))+b
 
+# Normative clock matrix must exist and be incorporated through the Draft 0.6 contract registry.
+clock_registry=(R/'docs/coredrp-v1-clock-state.md').read_text(encoding='utf-8')
+contract_registry=(R/'docs/coredrp-v1-draft06-contracts.md').read_text(encoding='utf-8')
+assert 'coredrp-v1-clock-state.md' in contract_registry
+assert 'Exhaustive state/reason matrix' in clock_registry
+for pair in ('GOOD | PROBE_EVIDENCE','BAD | PROBE_EVIDENCE','BAD | RECEIVER_WALL_STEP','BAD | SENDER_PROCESSING_LIMIT','UNKNOWN | EVIDENCE_EXPIRED','UNKNOWN | PROBE_EVIDENCE','UNKNOWN | SENDER_PROCESSING_LIMIT'):
+ assert pair in clock_registry,pair
+
 # Compatibility
 for x in D['compatibility_cases']:
  if x['case_kind']=='core_1_1':got='CORE_1_1' if x['peer_core_minor']==1 else 'PROTOCOL_VERSION_MISMATCH'
