@@ -98,3 +98,66 @@ def test_bounded_retry_reopens_wal(tmp_path,monkeypatch):
     async def unavailable(*args):raise ConnectionRefusedError()
     monkeypatch.setattr(recovery,'drain',unavailable)
     with pytest.raises(Failure,match='RECOVERY_RETRY_EXHAUSTED'):asyncio.run(recovery.sync(path,'localhost',1,None,b'r'*16,2,0))
+
+
+def registry_retryable_codes():
+    from pathlib import Path
+    rows=(Path(__file__).resolve().parents[2]/'docs/coredrp-v1-errors.md').read_text().splitlines()
+    return {line.split('|')[2].strip() for line in rows if '| STREAM_RETRYABLE |' in line}
+
+
+@pytest.mark.parametrize('code',sorted(registry_retryable_codes()))
+def test_every_registry_retryable_code_recovers_and_is_bounded(tmp_path,monkeypatch,code):
+    from coredrp_ref.transport import error,RETRYABLE_CODES
+    from coredrp_ref.wire import pb
+    assert RETRYABLE_CODES==registry_retryable_codes()
+    assert error(code).error.disposition==pb.ERROR_DISPOSITION_STREAM_RETRYABLE
+    path=tmp_path/'wal';create(path);calls=[]
+    async def transient(*args):
+        calls.append(1)
+        if len(calls)<3:raise Failure(code)
+    monkeypatch.setattr(recovery,'drain',transient)
+    assert asyncio.run(recovery.sync(path,'localhost',1,None,b'r'*16,3,0))==0
+    assert len(calls)==3
+    calls.clear()
+    with pytest.raises(Failure,match='RECOVERY_RETRY_EXHAUSTED'):asyncio.run(recovery.sync(path,'localhost',1,None,b'r'*16,2,0))
+    assert len(calls)==2
+
+
+@pytest.mark.parametrize('err',[errno.ENETUNREACH,errno.EHOSTUNREACH,errno.ENETDOWN,errno.EHOSTDOWN,errno.ETIMEDOUT,'dns'])
+def test_network_os_errors_retry_then_recover(tmp_path,monkeypatch,err):
+    import socket
+    path=tmp_path/'wal';create(path);calls=[]
+    async def transient(*args):
+        calls.append(1)
+        if len(calls)<3:
+            if err=='dns':raise socket.gaierror(socket.EAI_AGAIN,'temporary DNS failure')
+            raise OSError(err,'network unavailable')
+    monkeypatch.setattr(recovery,'drain',transient)
+    assert asyncio.run(recovery.sync(path,'localhost',1,None,b'r'*16,3,0))==0
+    assert len(calls)==3
+    calls.clear()
+    with pytest.raises(Failure,match='RECOVERY_RETRY_EXHAUSTED'):asyncio.run(recovery.sync(path,'localhost',1,None,b'r'*16,2,0))
+    assert len(calls)==2
+
+
+@pytest.mark.parametrize('kind',['tls','permanent_dns','disk_full','disk_io'])
+def test_non_network_os_errors_do_not_retry(tmp_path,monkeypatch,kind):
+    import socket,ssl
+    path=tmp_path/'wal';create(path);calls=[]
+    async def fail(*args):
+        calls.append(1)
+        if kind=='tls':raise ssl.SSLError('certificate rejected')
+        if kind=='permanent_dns':raise socket.gaierror(socket.EAI_NONAME,'unknown hostname')
+        raise OSError(errno.ENOSPC if kind=='disk_full' else errno.EIO,'storage failure')
+    monkeypatch.setattr(recovery,'drain',fail)
+    with pytest.raises(Failure if kind=='tls' else OSError):asyncio.run(recovery.sync(path,'localhost',1,None,b'r'*16,3,0))
+    assert len(calls)==1
+
+
+def test_wal_open_io_failure_stays_outside_network_retry(tmp_path,monkeypatch):
+    calls=[]
+    def fail(*args):calls.append(1);raise OSError(errno.EIO,'storage failure')
+    monkeypatch.setattr(recovery,'WAL',fail)
+    with pytest.raises(OSError):asyncio.run(recovery.sync(tmp_path/'wal','localhost',1,None,b'r'*16,3,0))
+    assert len(calls)==1
