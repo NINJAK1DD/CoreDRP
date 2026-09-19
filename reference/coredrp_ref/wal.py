@@ -7,7 +7,7 @@ No pruning or repair is automatic. Every uncertain/corrupt record fails closed.
 import fcntl,json,os,struct
 from pathlib import Path
 from .wire import pb,require,Failure,H,genesis,chain,validate,checkpoint,BINDING
-from .faults import hit
+from .faults import hit,io_fault
 
 def canonical(x):return json.dumps(x,sort_keys=True,separators=(',',':')).encode()
 def syncdir(p):
@@ -17,8 +17,11 @@ def syncdir(p):
 def atomic(path,obj):
     raw=canonical(obj);data=canonical({'data':obj,'sha256':H(raw).hex()})
     temp=path.with_suffix('.new')
-    with open(temp,'wb') as f:f.write(data);f.flush();os.fsync(f.fileno())
-    os.replace(temp,path);syncdir(path.parent)
+    with open(temp,'wb') as f:
+        io_fault('anchor_write');require(f.write(data)==len(data),'WAL_IO_FAILURE');f.flush()
+        io_fault('anchor_fsync');os.fsync(f.fileno())
+    io_fault('anchor_replace');os.replace(temp,path)
+    io_fault('anchor_directory_fsync');syncdir(path.parent)
 def read_anchor(path):
     try:
         x=json.loads(path.read_bytes());require(H(canonical(x['data'])).hex()==x['sha256'],'WAL_CORRUPTION');return x['data']
@@ -26,6 +29,7 @@ def read_anchor(path):
 
 class WAL:
     def __init__(self,path,sender=None,epoch=None,cap=1024*1024):
+        self.healthy=True
         self.path=Path(path);self.path.mkdir(parents=True,exist_ok=True);syncdir(self.path.parent)
         self.lock=open(self.path/'writer.lock','a+b')
         try:fcntl.flock(self.lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
@@ -56,12 +60,22 @@ class WAL:
             self.recover()
         except BaseException:self.close();raise
     def close(self):
+        self.healthy=False
         if self.file:self.file.close()
         if hasattr(self,'identity_lock'):self.identity_lock.close()
         self.lock.close()
     def __enter__(self):return self
     def __exit__(self,*_):self.close()
-    def save(self):atomic(self.path/'anchor.json',self.state)
+    def check(self):require(self.healthy,'WAL_REOPEN_REQUIRED')
+    def save(self):
+        self.check()
+        try:atomic(self.path/'anchor.json',self.state)
+        except (OSError,Failure):
+            self.close();raise Failure('WAL_IO_FAILURE') from None
+    def increase_cap(self,cap):
+        self.check()
+        require(type(cap) is int and cap>self.state['cap'],'INVALID_CAP_INCREASE')
+        self.state['cap']=cap;self.save()
     def recover(self):
         self.events=[];self.keys={};self.hashes=[genesis(self.sender,self.epoch)]
         self.file.seek(0);last_time=0;floor=-1
@@ -80,9 +94,13 @@ class WAL:
             t=self.state['tail'];require(0<=t<=len(self.events) and self.hashes[t].hex()==self.state['tail_hash'],'WAL_CORRUPTION')
             a=self.state['ack'];require(0<=a<=t and self.hashes[a].hex()==self.state['ack_hash'],'WAL_CORRUPTION')
         except (ValueError,KeyError,IndexError):raise Failure('WAL_CORRUPTION') from None
+        # A complete suffix may have survived a failed fsync without being durable.
+        # Sync it before advancing the durable anchor or returning caller success.
+        io_fault('recovery_fsync');os.fsync(self.file.fileno())
         # Complete fsynced suffix beyond a lagging anchor is retained, never discarded.
         self.state.update(tail=len(self.events),tail_hash=self.hashes[-1].hex(),last_time=last_time,checkpoint=floor);self.save()
     def admit_checkpoint(self,key,event_time,boundary):
+        self.check()
         require(isinstance(key,str) and 0<len(key.encode())<=128,'INVALID_HANDSHAKE')
         request=H(canonical([event_time,boundary])).hex()
         if key in self.keys:
@@ -95,19 +113,25 @@ class WAL:
         self.file.seek(0,2);require(self.file.tell()+len(record)<=self.state['cap'],'RESOURCE_LIMIT_EXCEEDED')
         hit('before_wal_write')
         try:
-            require(self.file.write(record)==len(record),'WAL_IO_FAILURE');os.fsync(self.file.fileno());hit('after_wal_fsync')
+            io_fault('wal_write')
+            require(self.file.write(record)==len(record),'WAL_IO_FAILURE')
+            io_fault('wal_fsync');os.fsync(self.file.fileno());hit('after_wal_fsync')
             self.state.update(tail=e.sequence,tail_hash=ch.hex(),last_time=event_time,checkpoint=boundary);self.save();hit('after_anchor_fsync')
+        except OSError:
+            self.close();raise Failure('WAL_IO_FAILURE') from None
         except BaseException:
             # Caller must reopen/recover before further work following an IO failure.
             self.close();raise
         self.events.append(e);self.hashes.append(ch);self.keys[key]=(request,e.sequence);return e.sequence
     def acknowledge(self,seq,digest):
+        self.check()
         require(self.state['ack']<=seq<=self.state['tail'],'SENDER_ROLLBACK')
         require(self.hashes[seq]==digest,'SPLIT_LOG')
         if seq==self.state['ack']:return
         hit('before_ack_persist')
         self.state.update(ack=seq,ack_hash=digest.hex());self.save();hit('after_ack_persist')
     def bind(self,h):
+        self.check()
         require(len(h.receiver_id)==16 and len(h.receiver_database_epoch)==16,'INVALID_HANDSHAKE')
         if self.state['receiver'] is not None:
             require(self.state['receiver']==h.receiver_id.hex(),'RECEIVER_ID_CHANGED')
@@ -120,6 +144,7 @@ class WAL:
         self.state.update(receiver=h.receiver_id.hex(),incarnation=h.receiver_database_epoch.hex(),bound=True);self.save()
         self.acknowledge(h.committed_sequence,h.committed_chain_hash)
     def hello(self):
+        self.check()
         h=pb.ClientHello(protocol_major=1,protocol_minor=1,sender_id=self.sender,lane_id=0,log_epoch=self.epoch,earliest_retained_sequence=1,durable_tail_sequence=self.state['tail'],remembered_ack_sequence=self.state['ack'],remembered_ack_chain_hash=bytes.fromhex(self.state['ack_hash']),supported_event_types=[1],implementation_name='coredrp-reference',implementation_version='0.1')
         if self.state['bound']:h.remembered_contract_binding_digest=BINDING
         return h

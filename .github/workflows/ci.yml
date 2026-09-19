@@ -120,4 +120,6 @@ jobs:
       - run: python -m pip install -r reference/requirements.txt
       - run: python reference/generate.py
       - name: Kill/restart sender and receiver around durable boundaries
+        env:
+          COREDRP_TEST_PG_CONTAINER: ${{ job.services.postgres.id }}
         run: python -m pytest -q reference/tests
