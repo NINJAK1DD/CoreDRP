@@ -113,7 +113,6 @@ jobs:
     env:
       COREDRP_REF_DSN: postgresql://coredrp_lab:isolated_ci_only@localhost:5432/coredrp_ref_ci
       PYTHONPATH: reference
-      COREDRP_TEST_PG_CONTAINER: ${{ job.services.postgres.id }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -121,4 +120,6 @@ jobs:
       - run: python -m pip install -r reference/requirements.txt
       - run: python reference/generate.py
       - name: Kill/restart sender and receiver around durable boundaries
+        env:
+          COREDRP_TEST_PG_CONTAINER: ${{ job.services.postgres.id }}
         run: python -m pytest -q reference/tests
