@@ -90,7 +90,7 @@ These tests demonstrate eventual drain for the tested finite faults, assuming a 
 
 `python -m coredrp_ref.shadow` provides an **offline** one-scope PPLNS comparison using the retained accounting corpus. It parses original accounting payloads, recomputes exact reference allocation, compares to a separately supplied baseline export shape, persists only shadow reports, and blocks eligibility on differences or missing policy staging, membership, clock, checkpoint or unresolved/waived evidence. Tests exercise each blocked condition. It cannot issue payouts.
 
-This is the fixture-backed bridge for milestone 3, **not a live Miningcore integration**. The next implementation PR should add a read-only exporter from an isolated Miningcore instance, explain each differential result, implement authenticated policy distribution/staging and actual Mining clock/checkpoint handling, and add an accounting adapter to receiver transactions only after those profile obligations are covered. Do not advertise Mining 1.1 merely because the offline arithmetic agrees.
+For actual Miningcore tables, the [read-only PPS adapter](MININGCORE-SHADOW.md) exports one scope and time interval from an isolated restored database, compares exact liabilities and tagged balance credits, and reports every detected difference. It is tested against the complete pinned Miningcore schema in PostgreSQL; no production database has been accessed. Reports remain payout-ineligible because authenticated policy distribution/staging, Mining clock/checkpoint handling and historical remainder proof are not yet integrated. Do not advertise Mining 1.1 merely because arithmetic agrees.
 
 ## Administrative follow-up and limits
 
