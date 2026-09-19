@@ -1,6 +1,6 @@
 # Copyright 2026 Rob Cooke
 # SPDX-License-Identifier: Apache-2.0
-import asyncio,ssl,time
+import asyncio,ssl,time,os
 import psycopg
 from grpclib.server import Server
 from grpclib.client import Channel
@@ -30,15 +30,16 @@ def peer_id(peer,kind):
     except ValueError:raise Failure('UNAUTHORIZED_SENDER') from None
 
 # Use registry dispositions, not human exception text or database messages.
+RETRYABLE_CODES=frozenset({'EVENT_VALIDATOR_UNAVAILABLE','RECEIVER_DURABILITY_UNAVAILABLE','CLOCK_CONTRACT_VIOLATION','RESOURCE_LIMIT_EXCEEDED','STREAM_ALREADY_ACTIVE'})
 _OPERATOR={'SEQUENCE_GAP','CONTRACT_BINDING_CHANGED','ADMIN_ACTION_CONFLICT','SPLIT_LOG','SENDER_ROLLBACK','RECEIVER_ROLLBACK','RECOVERY_GAP','RECEIVER_INCARNATION_CHANGED','RECEIVER_ID_CHANGED','CHAIN_MISMATCH','CHECKPOINT_BACKDATED_EVENT','EVENT_IDENTITY_MISMATCH','INVALID_STATE_TRANSITION','EPOCH_NOT_APPROVED'}
 def error(code):
     disposition=pb.ERROR_DISPOSITION_OPERATOR_INTERVENTION if code in _OPERATOR else pb.ERROR_DISPOSITION_PERMANENT_CONFIGURATION
-    if code in ('RECEIVER_DURABILITY_UNAVAILABLE','RESOURCE_LIMIT_EXCEEDED','STREAM_ALREADY_ACTIVE','CLOCK_CONTRACT_VIOLATION'):disposition=pb.ERROR_DISPOSITION_STREAM_RETRYABLE
+    if code in RETRYABLE_CODES:disposition=pb.ERROR_DISPOSITION_STREAM_RETRYABLE
     if code=='SEMANTIC_PAYLOAD_INVALID':disposition=pb.ERROR_DISPOSITION_EVENT_QUARANTINABLE
     return pb.ServerFrame(error=pb.ProtocolError(code=pb.ErrorCode.Value(code),disposition=disposition,message=code))
 
 class Receiver(DurableRelayBase):
-    def __init__(self,dsn,paused=False):self.dsn=dsn;self.paused=paused
+    def __init__(self,dsn,paused=False):self.dsn=dsn;self.paused=paused;self.disconnected=False
     async def Stream(self,stream):
         session=None
         try:
@@ -56,9 +57,20 @@ class Receiver(DurableRelayBase):
             async for frame in stream:
                 kind=frame.WhichOneof('body')
                 if kind=='batch':
+                    drop=os.environ.get('COREDRP_TEST_DISCONNECT') if not self.disconnected else None
+                    if drop=='before_ingest':
+                        self.disconnected=True;await stream.cancel();return
                     ack=session.ingest(frame.batch,window_events,window_bytes)
+                    if drop=='after_ingest':
+                        self.disconnected=True;await stream.cancel();return
                     ack.committed_at_unix_ms=int(time.time()*1000)
+                    if self.paused:
+                        window_events=window_bytes=0
+                        await stream.send_message(pb.ServerFrame(window_update=pb.WindowUpdate(window_events=0,window_bytes=0)))
                     await stream.send_message(pb.ServerFrame(ack=ack))
+                    if self.paused:
+                        window_events,window_bytes=1+ack.committed_through_sequence%7,100
+                        await stream.send_message(pb.ServerFrame(window_update=pb.WindowUpdate(window_events=window_events,window_bytes=window_bytes)))
                 elif kind=='heartbeat':
                     await stream.send_message(pb.ServerFrame(heartbeat=pb.ServerHeartbeat(sent_at_unix_ms=int(time.time()*1000),committed_sequence=session.hello.committed_sequence)))
                     if self.paused:
@@ -107,11 +119,12 @@ async def drain(wal,host,port,ssl_context,receiver_id,timeout=10):
                     batch=[];size=0
                     for e in wal.events[wal.state['ack']:]:
                         require(len(e.payload)<=payload_limit,'EVENT_TOO_LARGE')
+                        require(charge(e)<=batch_bytes,'EVENT_TOO_LARGE')
                         if len(batch)>=min(we,batch_events) or size+charge(e)>min(wb,batch_bytes):break
                         batch.append(e);size+=charge(e)
-                    require(bool(batch),'RESOURCE_LIMIT_EXCEEDED')
-                    inflight=batch[-1].sequence
-                    await stream.send_message(pb.ClientFrame(batch=pb.EventBatch(first_sequence=batch[0].sequence,events=batch,terminal_chain_hash=wal.hashes[batch[-1].sequence])))
+                    if batch:
+                        inflight=batch[-1].sequence
+                        await stream.send_message(pb.ClientFrame(batch=pb.EventBatch(first_sequence=batch[0].sequence,events=batch,terminal_chain_hash=wal.hashes[batch[-1].sequence])))
                 frame=await stream.recv_message();require(frame is not None,'RECEIVER_DURABILITY_UNAVAILABLE')
                 kind=frame.WhichOneof('body')
                 if kind=='error':raise Failure(pb.ErrorCode.Name(frame.error.code))

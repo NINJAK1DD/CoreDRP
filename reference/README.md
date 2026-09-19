@@ -6,7 +6,7 @@ This is a deliberately small **Core 1.1 implementation slice**, using the frozen
 
 The sender uses an append-only length/SHA-256-framed WAL and separately fsynced atomic anchor. Receiver event bytes, application effect, checkpoint and stream head commit in one PostgreSQL transaction with `synchronous_commit=on`; only then is ACK sent. A receiver-ahead reconnect verifies the chain before remembering the missing ACK. Stop-and-wait batches obey event/byte credit, including zero windows. Both TLS endpoints require TLS 1.3, a trusted client/server certificate, hostname verification on the client, and exactly one matching CoreDRP URI SAN.
 
-Sender state retains all records and caller-key mappings. There is **no pruning, automatic corruption repair, epoch replacement, quarantine approval, or holder retirement**. Cap exhaustion stops admission. Full checksummed records beyond a lagging anchor recover; incomplete records, anchor mismatch and middle corruption stop recovery without modifying the evidence. This is intentionally more conservative than the optional torn-tail repair in the specification.
+Sender state retains all records and caller-key mappings. There is **no pruning, automatic corruption repair, epoch replacement, quarantine approval, or holder retirement**. Cap exhaustion stops admission; the explicit `increase-cap` command can add capacity without removing evidence. Full checksummed records beyond a lagging anchor recover; incomplete records, anchor mismatch and middle corruption stop recovery without modifying the evidence. This is intentionally more conservative than the optional torn-tail repair in the specification.
 
 ## Development environment
 
@@ -61,11 +61,13 @@ Bootstrap is a privileged **local lab provisioning command**, not a network ADMI
 
 All sender durability paths for one host must share the same provisioned parent directory. The sender takes both a path lock and a `(sender,lane)` lock in that parent's `sender-fences` directory. Copying an identity onto another host/durability root is unsupported and requires an external deployment fence. Receiver processes sharing the database use a PostgreSQL session advisory lock plus durable owner generation and row checks; a lost session cannot silently reconnect and retain its old ownership. Unsupported lane/profile/epoch requests are rejected, never downgraded.
 
+See [tested recovery operations](RECOVERY.md) for bounded reconnects, capacity increases, storage-error handling and the failure acceptance contract.
+
 ## Acceptance tests
 
 ```sh
 PYTHONPATH=reference .venv/bin/python -m pytest -q reference/tests/test_wal.py
-# With the disposable PostgreSQL database available:
+# With the disposable PostgreSQL database and COREDRP_TEST_PG_CONTAINER available:
 PYTHONPATH=reference .venv/bin/python -m pytest -q reference/tests
 ```
 

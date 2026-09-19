@@ -111,3 +111,21 @@ def test_payload_above_peer_cap_stops_before_send(monkeypatch,sender):
     hello.max_event_payload_bytes=1
     with pytest.raises(Failure,match='EVENT_TOO_LARGE'):exchange(monkeypatch,wal,hello)
     assert wal.state['ack']==0
+
+
+def test_insufficient_temporary_byte_credit_waits_for_update(monkeypatch,sender):
+    wal,hello=sender
+    hello.window_bytes=1
+    batches=exchange(monkeypatch,wal,hello,[pb.WindowUpdate(window_events=MAX_BATCH,window_bytes=MAX_CHARGE)])
+    assert wal.state['ack']==70 and batches
+
+
+def test_repeated_pause_resume_changing_credit(monkeypatch,sender):
+    wal,hello=sender
+    hello.window_events=hello.window_bytes=0
+    # Updates can arrive while a batch is in flight; only the next batch uses
+    # the replacement credit. Include insufficient positive credit and pauses.
+    updates=[pb.WindowUpdate(window_events=n,window_bytes=b) for n,b in [(1,100),(0,0),(3,1),(0,100),(2,100),(0,0),(4,200)]]
+    batches=exchange(monkeypatch,wal,hello,updates)
+    assert wal.state['ack']==70
+    assert len(batches[0].events)==1 and all(len(b.events)<=4 for b in batches)
