@@ -42,11 +42,12 @@ def lab(tmp_path):
         if crash:env['COREDRP_TEST_CRASH']=crash
         return subprocess.run([sys.executable,'-m','coredrp_ref.cli',*map(str,args)],env=env,capture_output=True,timeout=15)
     def certargs(who):return ['--ca',tmp_path/'ca.pem','--cert',tmp_path/(who+'.pem'),'--key',tmp_path/(who+'.key')]
-    def start(crash=None,paused=False):
+    def start(crash=None,paused=False,disconnect=None):
         with socket.socket() as s:s.bind(('127.0.0.1',0));port=s.getsockname()[1]
         ready=tmp_path/('ready-'+str(port));env=dict(os.environ,PYTHONPATH='reference')
         env.pop('COREDRP_TEST_CRASH',None)
         if crash:env['COREDRP_TEST_CRASH']=crash
+        if disconnect:env['COREDRP_TEST_DISCONNECT']=disconnect
         log=open(tmp_path/('receiver-'+str(port)+'.log'),'wb')
         p=subprocess.Popen([sys.executable,'-m','coredrp_ref.cli','serve','--port',str(port),'--ready',str(ready),*map(str,certargs('receiver')),*(['--test-paused'] if paused else [])],env=env,stdout=log,stderr=log)
         log.close();processes.append(p)
@@ -56,7 +57,7 @@ def lab(tmp_path):
             assert time.monotonic()<deadline,'receiver startup timed out'
             time.sleep(.02)
         return p,port
-    def sync(port,crash=None):return cmd('sync','--wal',tmp_path/'wal','--receiver',str(uuid.UUID(bytes=R)),'--port',port,*certargs('sender'),crash=crash)
+    def sync(port,crash=None):return cmd('sync','--wal',tmp_path/'wal','--receiver',str(uuid.UUID(bytes=R)),'--port',port,'--attempts',1,*certargs('sender'),crash=crash)
     def counts():
         with connect(dsn) as db:
             return tuple(db.execute('SELECT count(*) FROM coredrp_ref.'+t+' WHERE sender=%s',(sender,)).fetchone()[0] for t in ('events','effects'))
@@ -180,3 +181,110 @@ def test_wrong_authenticated_sender_identity(lab):
                 frame=await stream.recv_message()
                 assert frame.WhichOneof('body')=='error' and frame.error.code==pb.UNAUTHORIZED_SENDER
     asyncio.run(attempt());assert lab['counts']()==(0,0)
+
+
+@pytest.mark.parametrize('point',['before_ingest','after_ingest'])
+def test_stream_reset_reconnect_without_process_death(lab,point):
+    with WAL(lab['path']/'wal') as w:
+        for i in range(70):w.admit_checkpoint(str(i),100+i,99+i)
+    p,port=lab['start'](disconnect=point)
+    out=lab['cmd']('sync','--wal',lab['path']/'wal','--receiver',str(uuid.UUID(bytes=R)),
+        '--port',port,'--attempts',3,'--retry-delay',0.05,*lab['certargs']('sender'))
+    assert out.returncode==0,out.stderr.decode()
+    assert p.poll() is None and lab['counts']()==(70,70)
+    with WAL(lab['path']/'wal') as w:assert w.state['ack']==70
+
+
+def test_lost_database_session_cannot_keep_writer_ownership(lab):
+    with WAL(lab['path']/'wal') as w:
+        w.admit_checkpoint('event',100,99)
+        s=Session(lab['dsn'],w.hello())
+        with connect(lab['dsn']) as db:db.execute('SELECT pg_terminate_backend(%s)',(s.db.info.backend_pid,))
+        import psycopg
+        b=pb.EventBatch(first_sequence=1,events=w.events,terminal_chain_hash=w.hashes[-1])
+        with pytest.raises(psycopg.Error):s.ingest(b)
+        s.close()
+    assert lab['counts']()==(0,0)
+    p,port=lab['start']();out=lab['sync'](port)
+    assert out.returncode==0,out.stderr.decode()
+    assert lab['counts']()==(1,1)
+
+
+@pytest.mark.parametrize('committed',[False,True])
+def test_real_postgres_restart_recovers_without_duplicate_effect(lab,committed):
+    container=os.environ.get('COREDRP_TEST_PG_CONTAINER')
+    assert container,'restart acceptance requires the isolated CI PostgreSQL container ID'
+    with WAL(lab['path']/'wal') as w:
+        w.admit_checkpoint('restart',100,99)
+        s=Session(lab['dsn'],w.hello())
+        b=pb.EventBatch(first_sequence=1,events=w.events,terminal_chain_hash=w.hashes[-1])
+        if not committed:s.db.execute('BEGIN')
+        # In the uncommitted case an outer transaction retains the whole batch.
+        # No ACK is sent/persisted by this direct storage harness.
+        s.ingest(b)
+        assert lab['counts']()==((1,1) if committed else (0,0))
+        subprocess.run(['docker','restart','--time','1',container],check=True,capture_output=True,timeout=30)
+        s.close()
+    deadline=time.monotonic()+20
+    while True:
+        try:
+            with connect(lab['dsn']):pass
+            break
+        except Exception:
+            assert time.monotonic()<deadline,'PostgreSQL did not recover'
+            time.sleep(.1)
+    assert lab['counts']()==((1,1) if committed else (0,0))
+    p,port=lab['start']();out=lab['sync'](port)
+    assert out.returncode==0,out.stderr.decode()
+    assert lab['counts']()==(1,1)
+    with WAL(lab['path']/'wal') as w:assert w.state['ack']==1
+
+
+def test_tcp_disconnect_inside_batch_then_reconnect(lab,monkeypatch):
+    from grpclib.client import Stream as ClientStream
+    from coredrp_ref.recovery import sync
+    with WAL(lab['path']/'wal') as w:
+        for i in range(70):w.admit_checkpoint(str(i),100+i,99+i)
+    process,port=lab['start'](paused=True)
+    armed=False;cut=False
+    original=ClientStream.send_message
+    async def send(self,message,*args,**kwargs):
+        nonlocal armed
+        if isinstance(message,pb.ClientFrame) and message.WhichOneof('body')=='batch' and not cut:armed=True
+        return await original(self,message,*args,**kwargs)
+    monkeypatch.setattr(ClientStream,'send_message',send)
+    async def run():
+        tasks=set()
+        async def proxy(client_reader,client_writer):
+            nonlocal cut
+            task=asyncio.current_task();tasks.add(task)
+            receiver_reader,receiver_writer=await asyncio.open_connection('localhost',port)
+            async def pump(reader,writer,outbound):
+                nonlocal cut
+                while data:=await reader.read(65536):
+                    if outbound and armed and not cut:
+                        # Drop within the encrypted batch record, not at a
+                        # convenient protobuf boundary; neither process dies.
+                        cut=True;writer.write(data[:7]);await writer.drain();return
+                    writer.write(data);await writer.drain()
+            pumps=[asyncio.create_task(pump(client_reader,receiver_writer,True)),asyncio.create_task(pump(receiver_reader,client_writer,False))]
+            try:
+                await asyncio.wait(pumps,return_when=asyncio.FIRST_COMPLETED)
+            finally:
+                for p in pumps:p.cancel()
+                await asyncio.gather(*pumps,return_exceptions=True)
+                client_writer.close();receiver_writer.close()
+                await asyncio.gather(client_writer.wait_closed(),receiver_writer.wait_closed(),return_exceptions=True)
+                tasks.discard(task)
+        server=await asyncio.start_server(proxy,'localhost',0)
+        proxy_port=server.sockets[0].getsockname()[1]
+        # Bind IPv4 explicitly: localhost can allocate distinct IPv4/v6 ports.
+        server.close();await server.wait_closed()
+        server=await asyncio.start_server(proxy,'127.0.0.1',proxy_port)
+        context=tls(lab['path']/'ca.pem',lab['path']/'sender.pem',lab['path']/'sender.key')
+        try:assert await sync(lab['path']/'wal','localhost',proxy_port,context,R,5,.1)==70
+        finally:
+            server.close();await server.wait_closed()
+            if tasks:await asyncio.gather(*list(tasks),return_exceptions=True)
+    asyncio.run(run())
+    assert cut and process.poll() is None and lab['counts']()==(70,70)
