@@ -15,3 +15,9 @@ Reviewed base: `ef2adf8cf6331d518caa2ef6f1be67c760cbc353`.
 All 19 existing Python conformance gates and the local sender/WAL tests are runnable without PostgreSQL. The full live suite requires a dedicated `coredrp_ref_*` database and fails rather than skips when it is absent. This workspace cannot switch to PostgreSQL's required non-root identity, so the real PostgreSQL acceptance evidence is supplied by both CI paths. Full run results are recorded on the PR.
 
 This is a bounded experimental implementation slice, not a complete Core/Mining/Miningcore implementation or a security audit. It retains all evidence and rejects unsupported profile/epoch changes. The [reference guide](../../reference/README.md) specifies runtime assumptions, exact commands, acceptance boundaries and remaining work. The formal model remains a bounded safety check; demonstrated finite-fault drain is not a general liveness proof.
+
+## CI tool provenance follow-up
+
+The first full run detected that the upstream `v1.8.0` TLA+ release asset changed since the earlier CI pin. The official [release API](https://api.github.com/repos/tlaplus/tlaplus/releases/tags/v1.8.0) identifies `tla2tools.jar` asset **569359548**, updated **17 September 2026**, size **4,492,966 bytes**, with digest `sha256:9d36716ffb5e49d1ba8fae4651eba59f3189887e12eb90e204a42d2e6e993fef`. A separate local download matched that exact digest before the workflow pin was updated. Hash verification remains mandatory; a future unreviewed asset change will still fail closed. The model and mutation checks are unchanged.
+
+The live TLS negative test also recognizes an EOF after the mandatory-client-certificate rejection, alongside SSL alerts/reset errors; it requests HTTP/2 ALPN so missing ALPN cannot falsely satisfy the rejection test.

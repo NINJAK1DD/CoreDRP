@@ -131,12 +131,14 @@ def test_tls12_and_missing_client_certificate_rejected(lab):
     for version,client_cert in [(ssl.TLSVersion.TLSv1_2,True),(ssl.TLSVersion.TLSv1_3,False)]:
         context=ssl.create_default_context(cafile=str(lab['path']/'ca.pem'))
         context.minimum_version=context.maximum_version=version
+        context.set_alpn_protocols(['h2'])
         if client_cert:context.load_cert_chain(lab['path']/'sender.pem',lab['path']/'sender.key')
         with pytest.raises((ssl.SSLError,ConnectionError,OSError)):
             with socket.create_connection(('localhost',port),timeout=2) as sock:
                 with context.wrap_socket(sock,server_hostname='localhost') as wrapped:
                     # TLS1.3 may surface the mandatory client-certificate alert on read.
-                    wrapped.sendall(b'PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n');wrapped.recv(1024)
+                    wrapped.sendall(b'PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n')
+                    if wrapped.recv(1024)==b'':raise ConnectionError('peer rejected unauthenticated TLS connection')
     assert lab['counts']()==(0,0)
 
 def test_wrong_receiver_identity_stops_before_admission(lab):

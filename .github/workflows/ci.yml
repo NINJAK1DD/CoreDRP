@@ -66,8 +66,9 @@ jobs:
       - run: dotnet run --project tools/csharp-vector-check/CoreDRP.VectorCheck.csproj --configuration Release
       - name: Run TLA+ safety model
         run: |
+          # v1.8.0 asset 569359548, published 2026-09-17; SHA verified against official release metadata.
           curl -fL --retry 3 -o .build/tla2tools.jar https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
-          echo "b658b4e504fdf0b721caf7066320f6b6fe5805f4dd2f717d0e47baba4097205e  .build/tla2tools.jar" | sha256sum -c -
+          echo "9d36716ffb5e49d1ba8fae4651eba59f3189887e12eb90e204a42d2e6e993fef  .build/tla2tools.jar" | sha256sum -c -
           java -XX:+UseParallelGC -jar .build/tla2tools.jar -config model/CoreDRP.cfg model/CoreDRP.tla
       - name: Prove realistic TLA+ mutations are detected
         run: |
