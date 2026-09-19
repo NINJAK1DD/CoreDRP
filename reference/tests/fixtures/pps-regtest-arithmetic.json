@@ -1,0 +1,15 @@
+{
+  "description": "Numeric regression derived from the user-supplied 19 September 2026 real Miningcore Stratum regtest report; not a replacement for its retained backup or authenticated evidence.",
+  "miningcore_revision": "be2add3d66c8f97b50265262a746d1980ec50e96",
+  "coredrp_revision": "253d1e15eab8782d2a69bf5273fbc489ef76084e",
+  "backup_sha256": "910f2fa0743c021533ac866efc3f241d4b8a5b0d5de7624f119d0530cd7ad411",
+  "original_snapshot_sha256": "f636ac58b48e761cbdf2b9d499127401527d3611a3d3a0a4c07216d52361ee7c",
+  "assigned_binary64": "3ddb7cdfd9d7bdbb",
+  "network_binary64": "3dfff45dd3a46629",
+  "reward_basis_satoshis": 5000000000,
+  "retained_percent": "99",
+  "share_count": 40,
+  "legacy_decimal_per_share": "10.64516129032258064516129",
+  "pps_liability_v1_per_share": "10.645161290322581103779573",
+  "aggregate_reference_minus_legacy": "0.00000000000001834473132"
+}
