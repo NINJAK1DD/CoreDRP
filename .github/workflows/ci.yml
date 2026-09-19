@@ -66,8 +66,9 @@ jobs:
       - run: dotnet run --project tools/csharp-vector-check/CoreDRP.VectorCheck.csproj --configuration Release
       - name: Run TLA+ safety model
         run: |
+          # v1.8.0 asset 569359548, published 2026-09-17; SHA verified against official release metadata.
           curl -fL --retry 3 -o .build/tla2tools.jar https://github.com/tlaplus/tlaplus/releases/download/v1.8.0/tla2tools.jar
-          echo "b658b4e504fdf0b721caf7066320f6b6fe5805f4dd2f717d0e47baba4097205e  .build/tla2tools.jar" | sha256sum -c -
+          echo "9d36716ffb5e49d1ba8fae4651eba59f3189887e12eb90e204a42d2e6e993fef  .build/tla2tools.jar" | sha256sum -c -
           java -XX:+UseParallelGC -jar .build/tla2tools.jar -config model/CoreDRP.cfg model/CoreDRP.tla
       - name: Prove realistic TLA+ mutations are detected
         run: |
@@ -85,3 +86,38 @@ jobs:
             fi
             grep -q "Invariant ${expected[$m]} is violated" .build/tla-$m.log
           done
+  windows-fingerprints:
+    runs-on: windows-latest
+    steps:
+      - run: git config --global core.autocrlf true
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - name: Verify real autocrlf checkout preserves protobuf bytes
+        run: |
+          git config --get core.autocrlf
+          python tools/check_wire_compatibility.py
+  reference-crash-tests:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: coredrp_lab
+          POSTGRES_PASSWORD: isolated_ci_only
+          POSTGRES_DB: coredrp_ref_ci
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U coredrp_lab -d coredrp_ref_ci"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      COREDRP_REF_DSN: postgresql://coredrp_lab:isolated_ci_only@localhost:5432/coredrp_ref_ci
+      PYTHONPATH: reference
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - run: python -m pip install -r reference/requirements.txt
+      - run: python reference/generate.py
+      - name: Kill/restart sender and receiver around durable boundaries
+        run: python -m pytest -q reference/tests

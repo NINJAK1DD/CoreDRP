@@ -18,3 +18,8 @@ __pycache__/
 # OS
 .DS_Store
 Thumbs.db
+
+# Reference implementation build/lab state (never commit private keys)
+.build/
+.venv/
+reference/lab/

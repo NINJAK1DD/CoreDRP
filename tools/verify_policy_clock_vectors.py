@@ -66,6 +66,14 @@ def verify_clock_update(x):
     bounds = lo is not None
     cls = interval_class(x)
 
+    def fresh_result(result):
+        age = x.get('probe_age_ms', 0)
+        if age < 0:
+            return ('MALFORMED_FRAME', None)
+        if age >= expiry:
+            return ('STALE_EVIDENCE', None)
+        return (result, min(valid_for, expiry - age))
+
     # Deterministic processing-limit classification: verified overrun is BAD.
     if reason == 'SENDER_PROCESSING_LIMIT':
         if not probe:
@@ -76,7 +84,7 @@ def verify_clock_update(x):
             return ('CLOCK_CONTRACT_VIOLATION', None)
         if bounds and cls == 'GOOD':
             return ('CLOCK_CONTRACT_VIOLATION', None)
-        return ('BAD', valid_for)
+        return fresh_result('BAD')
 
     if reason == 'RECEIVER_WALL_STEP':
         if probe:
@@ -108,12 +116,7 @@ def verify_clock_update(x):
     if state not in {'GOOD', 'BAD', 'UNKNOWN'}:
         return ('MALFORMED_FRAME', None)
 
-    age = x.get('probe_age_ms', 0)
-    if age >= expiry:
-        return ('STALE_EVIDENCE', None)
-    remaining = min(valid_for, expiry - age)
-    assert age + remaining <= expiry
-    return (state, remaining)
+    return fresh_result(state)
 
 
 def verify_unknown_grace(x):

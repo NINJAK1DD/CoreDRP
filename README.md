@@ -5,11 +5,15 @@
 **Originally designed and authored by Rob Cooke in 2026.**  
 Originally developed for the Miningcore project.
 
-> **Status: Draft 0.6 implementation-freeze candidate / pre-implementation. Not production-ready.**
+> **Status: Draft 0.6 implementation-freeze candidate with an experimental reference slice. Not production-ready.**
 
 CoreDRP is a durable, authenticated, replayable event-relay protocol with a domain-independent Core, reusable Mining Profile, and Miningcore Integration Profile.
 
 The canonical working specification is [`docs/CoreDRP-1-SPEC-0.6.md`](docs/CoreDRP-1-SPEC-0.6.md). [`docs/CoreDRP-1-SPEC.md`](docs/CoreDRP-1-SPEC.md) is intentionally only a pointer to that canonical version. Draft 0.5 and earlier specifications/semantic corpora remain historical reference only.
+
+## Experimental reference implementation
+
+The [reference lab](reference/README.md) implements one Core lane and approved epoch with a durable sender WAL, TLS 1.3 gRPC, PostgreSQL atomic ingest, ACK recovery and process-crash tests. It advertises no Mining profiles. An offline one-scope shadow harness prepares for the later Miningcore integration. The lab documents bootstrap, recovery, scope limits and the remaining implementation milestones.
 
 ## Draft 0.6 final Profile 1.1 freeze focus
 
