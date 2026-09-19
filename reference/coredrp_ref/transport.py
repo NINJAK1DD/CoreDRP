@@ -46,6 +46,8 @@ class Receiver(DurableRelayBase):
             require(frame is not None and frame.WhichOneof('body')=='hello','MALFORMED_FRAME')
             require(peer_id(stream.peer,'sender')==frame.hello.sender_id,'UNAUTHORIZED_SENDER')
             session=Session(self.dsn,frame.hello)
+            if self.paused:
+                session.hello.window_events=session.hello.window_bytes=0
             await stream.send_message(pb.ServerFrame(hello=session.hello))
             window_events,window_bytes=MAX_BATCH,MAX_CHARGE
             if self.paused:
@@ -91,7 +93,10 @@ async def drain(wal,host,port,ssl_context,receiver_id,timeout=10):
             require(frame.WhichOneof('body')=='hello','INVALID_HANDSHAKE')
             h=frame.hello
             require(h.receiver_id==receiver_id,'RECEIVER_ID_CHANGED')
-            require(0<h.max_event_payload_bytes<=MAX_PAYLOAD and 0<h.max_batch_events<=MAX_BATCH and 0<h.max_batch_payload_bytes<=MAX_CHARGE,'INVALID_HANDSHAKE')
+            require(h.max_event_payload_bytes>0 and h.max_batch_events>0 and h.max_batch_payload_bytes>0,'INVALID_HANDSHAKE')
+            payload_limit=min(h.max_event_payload_bytes,MAX_PAYLOAD)
+            batch_events=min(h.max_batch_events,MAX_BATCH)
+            batch_bytes=min(h.max_batch_payload_bytes,MAX_CHARGE)
             require(h.window_events<=h.max_batch_events and h.window_bytes<=h.max_batch_payload_bytes,'INVALID_HANDSHAKE')
             wal.bind(h);we,wb=h.window_events,h.window_bytes
             # Control exchange before data also consumes an initial WindowUpdate.
@@ -101,8 +106,8 @@ async def drain(wal,host,port,ssl_context,receiver_id,timeout=10):
                 if not waiting_heartbeat and inflight is None and we and wb:
                     batch=[];size=0
                     for e in wal.events[wal.state['ack']:]:
-                        require(len(e.payload)<=h.max_event_payload_bytes,'EVENT_TOO_LARGE')
-                        if len(batch)>=min(we,h.max_batch_events) or size+charge(e)>min(wb,h.max_batch_payload_bytes):break
+                        require(len(e.payload)<=payload_limit,'EVENT_TOO_LARGE')
+                        if len(batch)>=min(we,batch_events) or size+charge(e)>min(wb,batch_bytes):break
                         batch.append(e);size+=charge(e)
                     require(bool(batch),'RESOURCE_LIMIT_EXCEEDED')
                     inflight=batch[-1].sequence
@@ -114,7 +119,7 @@ async def drain(wal,host,port,ssl_context,receiver_id,timeout=10):
                     require(inflight is not None and frame.ack.committed_through_sequence==inflight,'MALFORMED_FRAME')
                     wal.acknowledge(frame.ack.committed_through_sequence,frame.ack.committed_chain_hash);inflight=None
                 elif kind=='window_update':
-                    require(frame.window_update.window_events<=h.window_events and frame.window_update.window_bytes<=h.window_bytes,'RESOURCE_LIMIT_EXCEEDED')
+                    require(frame.window_update.window_events<=h.max_batch_events and frame.window_update.window_bytes<=h.max_batch_payload_bytes,'RESOURCE_LIMIT_EXCEEDED')
                     we,wb=frame.window_update.window_events,frame.window_update.window_bytes
                 elif kind=='heartbeat':waiting_heartbeat=False
                 else:raise Failure('MALFORMED_FRAME')
