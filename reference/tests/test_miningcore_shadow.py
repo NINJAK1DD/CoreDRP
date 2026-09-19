@@ -165,3 +165,98 @@ def test_export_transaction_rejects_source_writes(source,monkeypatch):
         return original(db,query,params,**kwargs)
     monkeypatch.setattr(psycopg.Connection,'execute',execute)
     assert compare(snapshot(dsn,scope,START,END,policy(scope)))['accounting_matches'] and checked
+
+
+def test_orphan_ledger_credit_is_reported_alongside_complete_pair():
+    export=example();orphan=copy.deepcopy(export['data']['balance_changes'][0]);orphan['id']=2
+    orphan['tags']=['pps','pps-share:'+'f'*32];export['data']['balance_changes'].append(orphan)
+    export['sha256']=digest(export['data']);report=compare(export)
+    assert not report['accounting_matches']
+    assert report['differences'][0]['reason']=='balance_credit_without_source_rows'
+
+
+@pytest.mark.parametrize('amount',['-0.25','NaN','Infinity','0.250','bad',None])
+def test_noncanonical_ledger_amount_produces_report(amount):
+    export=example();export['data']['balance_changes'][0]['amount']=amount;export['sha256']=digest(export['data'])
+    result=compare(export)
+    assert not result['accounting_matches'] and not result['eligible']
+    assert result['differences'][0]['reason']=='balance_credit_mismatch'
+    assert result['differences'][0]['actual']==amount
+
+
+def carry_example(payments,half_unit=False):
+    export=example();data=export['data'];template=copy.deepcopy(data)
+    data['shares']=[];data['credits']=[];data['balance_changes']=[]
+    if half_unit:data['policy']['retained_percent']='0.0000000002'
+    for i,payment in enumerate(payments):
+        key=str(uuid.UUID(int=i+1));created=f'2026-09-19T00:00:{i:02d}Z'
+        share=dict(template['shares'][0],accountingid=key,created=created)
+        credit=dict(template['credits'][0],accountingid=key,created=created,creditedamount=payment)
+        credit['calculatedamount']='0.0000000000005' if half_unit else '0.166666666666666666666666'
+        if not half_unit:share['networkdifficulty_bits']=credit['networkdifficulty_bits']='4008000000000000'
+        data['shares'].append(share);data['credits'].append(credit)
+        if payment!='0':data['balance_changes'].append(dict(template['balance_changes'][0],id=i+1,created=created,amount=payment,tags=['pps','pps-share:'+key.replace('-','')]))
+    export['sha256']=digest(data);return export
+
+
+@pytest.mark.parametrize('payments,half_unit',[
+    (['0.166666666667']*3,False),
+    (['0.166666666667']*3+['0.166666666666'],False), # final total feasible, earlier prefix impossible
+    (['0','0'],True), # exactly one unit cannot be a valid closing remainder
+    (['0.000000000001']*2,True),
+])
+def test_impossible_recipient_carry_history_rejected(payments,half_unit):
+    result=compare(carry_example(payments,half_unit))
+    assert not result['accounting_matches']
+    assert 'inconsistent_recipient_carry_history' in [r['reason'] for r in result['differences']]
+
+
+def test_feasible_carry_history_remains_unverified_and_order_independent():
+    export=carry_example(['0','0.000000000001','0','0.000000000001'],True)
+    for collection in ('shares','credits','balance_changes'):export['data'][collection].reverse()
+    export['sha256']=digest(export['data']);report=compare(export)
+    assert report['accounting_matches'] and not report['eligible']
+    assert all(not row['verified'] for row in report['precision_differences'])
+
+
+def test_carry_constraints_are_per_recipient():
+    export=carry_example(['0','0'],True)
+    export['data']['shares'][1]['miner']=export['data']['credits'][1]['address']='bob'
+    export['sha256']=digest(export['data'])
+    assert compare(export)['accounting_matches']
+
+
+def test_real_ledger_only_credit_is_exported_independently(source):
+    dsn,scope,key=source;orphan=uuid.uuid4()
+    with connect(dsn) as db:
+        db.execute("INSERT INTO public.balance_changes(poolid,address,amount,usage,tags,created) VALUES(%s,'alice',0.25,'PPS share credit',%s,%s)",(scope,['pps','pps-share:'+orphan.hex],START))
+    export=snapshot(dsn,scope,START,END,policy(scope))
+    assert len(export['data']['balance_changes'])==2
+    report=compare(export)
+    assert not report['accounting_matches']
+    assert report['differences'][0]['reason']=='balance_credit_without_source_rows'
+
+
+def test_real_negative_ledger_amount_is_diagnostic(source,tmp_path):
+    dsn,scope,key=source
+    with connect(dsn) as db:db.execute('UPDATE public.balance_changes SET amount=-0.25 WHERE poolid=%s',(scope,))
+    export=snapshot(dsn,scope,START,END,policy(scope));source_file=tmp_path/'snapshot.json';output=tmp_path/'report.json'
+    source_file.write_text(json.dumps(export))
+    result=subprocess.run([sys.executable,'-m','coredrp_ref.miningcore_shadow','compare','--input',str(source_file),'--output',str(output)],capture_output=True,env=dict(os.environ,PYTHONPATH='reference'))
+    assert result.returncode==0,result.stderr.decode()
+    report=json.loads(output.read_text())
+    assert not report['accounting_matches'] and report['differences'][0]['reason']=='balance_credit_mismatch'
+
+
+@pytest.mark.parametrize('usage,tags,reason',[
+    ('PPS share credit',None,'ambiguous_balance_credit_tags'),
+    ('other',['pps-share:'+'f'*32],'balance_credit_without_source_rows'),
+    ('other',['pps'],'ambiguous_balance_credit_tags'),
+])
+def test_real_independent_ledger_discovery_by_usage_or_tags(source,usage,tags,reason):
+    dsn,scope,key=source
+    with connect(dsn) as db:
+        db.execute('INSERT INTO public.balance_changes(poolid,address,amount,usage,tags,created) VALUES(%s,\'alice\',0.25,%s,%s,%s)',(scope,usage,tags,START))
+    export=snapshot(dsn,scope,START,END,policy(scope));report=compare(export)
+    assert len(export['data']['balance_changes'])==2 and not report['accounting_matches']
+    assert reason in [d['reason'] for d in report['differences']]

@@ -10,6 +10,7 @@ from pathlib import Path
 import re
 import struct
 import sys
+import uuid
 from fractions import Fraction
 import psycopg
 from psycopg.rows import dict_row
@@ -57,7 +58,14 @@ def snapshot(dsn,scope,start,end,policy):
             credits=db.execute('SELECT accountingid,address,calculatedamount,creditedamount,difficulty,networkdifficulty,rewardbasissatoshis,created FROM public.pps_share_credits WHERE poolid=%s AND created>=%s AND created<%s ORDER BY created,accountingid LIMIT %s',params).fetchall()
             require(len(shares)<=MAX_ROWS and len(credits)<=MAX_ROWS,'SHADOW_EXPORT_LIMIT')
             tags=['pps-share:'+str(row['accountingid']).replace('-','') for row in shares+credits if row['accountingid'] is not None]
-            changes=db.execute('SELECT id,address,amount,usage,tags,created FROM public.balance_changes WHERE poolid=%s AND tags && %s::text[] ORDER BY id LIMIT %s',(scope,tags,MAX_ROWS+1)).fetchall()
+            changes=db.execute("""SELECT id,address,amount,usage,tags,created
+                FROM public.balance_changes
+                WHERE poolid=%s AND (
+                    (created>=%s AND created<%s AND (
+                        usage='PPS share credit' OR 'pps'=ANY(tags) OR
+                        EXISTS (SELECT 1 FROM unnest(tags) AS t(tag) WHERE tag LIKE 'pps-share:%%')))
+                    OR tags && %s::text[])
+                ORDER BY id LIMIT %s""",(scope,start,end,tags,MAX_ROWS+1)).fetchall()
             require(len(changes)<=MAX_ROWS,'SHADOW_EXPORT_LIMIT')
     def convert(rows):
         result=[]
@@ -94,8 +102,17 @@ def compare(export):
         tags=[t for t in (change['tags'] or []) if t.startswith('pps-share:')]
         if len(tags)!=1:
             finding(None,'ambiguous_balance_credit_tags',balance_change_id=change['id']);continue
-        changes.setdefault(tags[0],[]).append(change)
-    totals={};baseline={}
+        if not re.fullmatch(r'pps-share:[0-9a-f]{32}',tags[0]):
+            finding(None,'invalid_balance_credit_tag',balance_change_id=change['id']);continue
+        identity=str(uuid.UUID(hex=tags[0][10:]))
+        if identity not in shares and identity not in credits:
+            finding(identity,'balance_credit_without_source_rows',balance_change_id=change['id'])
+        try:ledger_amount=decimal(change['amount'])
+        except (ValueError,TypeError):
+            ledger_amount=None
+            finding(identity,'balance_credit_mismatch',balance_change_id=change['id'],field='amount',actual=change['amount'],detail='noncanonical ledger amount')
+        changes.setdefault(tags[0],[]).append((change,ledger_amount))
+    totals={};baseline={};recipient_credits={}
     for key in sorted(set(shares)|set(credits)):
         share=shares.get(key);credit=credits.get(key)
         if not share:finding(key,'credit_without_retained_share');continue
@@ -109,6 +126,7 @@ def compare(export):
         except (ValueError,TypeError):finding(key,'invalid_liability_input');continue
         miner=share['miner'];totals[miner]=totals.get(miner,Fraction(0))+decimal(expected)
         recipient=credit['address'];baseline[recipient]=baseline.get(recipient,Fraction(0))+actual
+        recipient_credits.setdefault(recipient,[]).append((timestamp(credit['created']),key,actual,paid))
         if actual!=decimal(expected):finding(key,'calculated_liability_mismatch',reference=expected,baseline=credit['calculatedamount'],delta=str(actual-decimal(expected)))
         # A per-share credit can include the previous sub-12-decimal remainder.
         # We do not invent the historical opening carry from current balances.
@@ -118,9 +136,23 @@ def compare(export):
         elif paid!=actual:rounding.append(dict(accounting_id=key,reason='scale12_rounding_or_carry_requires_opening_remainder',calculated=credit['calculatedamount'],credited=credit['creditedamount'],delta=str(paid-actual),verified=False))
         rows=changes.get('pps-share:'+key.replace('-',''),[])
         if len(rows)!=(1 if paid>0 else 0):finding(key,'balance_credit_count_mismatch',expected=1 if paid>0 else 0,actual=len(rows))
-        for row in rows:
-            if row['address']!=credit['address'] or row['usage']!='PPS share credit' or row['created']!=credit['created'] or decimal(row['amount'])!=paid:
+        for row,ledger_amount in rows:
+            if row['address']!=credit['address'] or row['usage']!='PPS share credit' or row['created']!=credit['created'] or (ledger_amount is not None and ledger_amount!=paid):
                 finding(key,'balance_credit_mismatch',balance_change_id=row['id'])
+    # For every prefix p, 0 <= opening + sum(calculated-credited) < unit.
+    # Intersect all permissible opening ranges, including the empty prefix.
+    # A nonempty intersection establishes possibility, never historical proof.
+    unit=Fraction(1,10**12)
+    for recipient,rows in sorted(recipient_credits.items()):
+        prefix=Fraction(0);lower=Fraction(0);upper=unit
+        for _,key,actual,paid in sorted(rows):
+            prefix+=actual-paid
+            lower=max(lower,-prefix);upper=min(upper,unit-prefix)
+            if lower>=upper:
+                finding(key,'inconsistent_recipient_carry_history',recipient=recipient,
+                        prefix_calculated_minus_credited=str(prefix),
+                        opening_lower_inclusive=str(lower),opening_upper_exclusive=str(upper))
+                break
     blockers=['authenticated policy/admission history unavailable','relay clock/checkpoint/gap evidence unavailable','historical opening/closing remainder proof unavailable']
     if not shares or not credits:blockers.append('no complete share/credit population')
     if differences:blockers.append('accounting differences require reconciliation')

@@ -3,6 +3,8 @@
 Copyright © 2026 Rob Cooke. Documentation: CC-BY-4.0.
 
 The adapter compares **one Bitcoin PPS pool/scope and one bounded time interval**.
+It discovers PPS balance changes independently within the interval (by usage or PPS tags), including ledger-only credits with no retained share or liability. It also retains tagged entries linked to selected rows outside the interval so timestamp mismatches remain visible.
+
 It reads actual Miningcore tables in an isolated restored database, using a single
 PostgreSQL REPEATABLE READ, READ ONLY transaction. It has no SQL write path,
 wallet RPC, payout call or Mining profile advertisement. Its only outputs are
@@ -65,10 +67,11 @@ For each accounting ID the report:
    and timestamp; identifies missing counterparts or missing accounting IDs.
 2. Recomputes the scale-24 PPS liability using the CoreDRP exact-rational algorithm
    and the supplied retained percentage; records both values and an exact delta
-   for every mismatch.
+   for every mismatch. Negative/noncanonical ledger amounts produce row-specific mismatch diagnostics rather than aborting the report.
 3. Checks that the scale-12 credited amount is within the permitted rounding/carry
    bounds, and that the tagged balance entry agrees with the stored credit.
-4. Lists precision/carry differences individually. A possible carry is explicitly
+4. Intersects the permissible opening-remainder ranges across every recipient prefix, ordered by credit `(created, accountingid)`, including the empty prefix. Each running remainder must stay in `[0, 10^-12)`; an empty intersection reports inconsistent carry history, even when individual credits or final totals look plausible. This is a consistency check under that ordering, not proof of historical transaction order or complete retention.
+5. Lists precision/carry differences individually. A possible carry is explicitly
    **unverified** without historical opening/closing remainder evidence.
 
 `accounting_matches` means the checked retained-row arithmetic and ledger links
