@@ -49,11 +49,11 @@ Thus two conforming receivers observing the same processing-limit fact cannot ch
 
 ## 4. Freshness and delayed delivery
 
-The sender records monotonic `probe_response_sent_mono` for each probe. On a probe-backed update:
+The sender records monotonic `probe_response_sent_mono` for each probe. On every probe-backed update, including `SENDER_PROCESSING_LIMIT`:
 
 `probe_age_ms = now_mono - probe_response_sent_mono`.
 
-If `probe_age_ms >= effective_evidence_expiry_ms`, the evidence is stale and establishes no fresh state. Otherwise:
+If `probe_age_ms >= effective_evidence_expiry_ms`, the evidence is stale and establishes no fresh state. It MUST NOT establish a new BAD latch, clear an existing BAD/RECOVERING latch, reset recovery observations, or restart UNKNOWN grace. Existing evidence still expires on its original timer; expiry of previously accepted BAD remains RECOVERING. Otherwise:
 
 `accepted_remaining_lifetime_ms = min(evidence_valid_for_ms, effective_evidence_expiry_ms - probe_age_ms)`.
 

@@ -3,7 +3,7 @@
 **Originally designed and authored by Rob Cooke, 2026.**  
 Copyright © 2026 Rob Cooke · SPDX-License-Identifier: CC-BY-4.0
 
-**Status:** Draft 0.6 implementation-freeze candidate; specification-first and pre-implementation.  
+**Status:** Draft 0.6 implementation-freeze candidate; specification-first, with an experimental partial Core reference implementation.
 **Wire:** Core 1.1.  
 **Reference integration target:** Miningcore.
 
@@ -255,12 +255,15 @@ For each ClockStateUpdate, sender validates before trust:
 - `evidence_valid_for_ms` is `1..effective_evidence_expiry_ms`;
 - `effective_permitted_skew_ms` equals the strictest currently bound lane policy;
 - GOOD requires lower/upper bounds both present, `lower <= upper`, and `-S <= lower <= upper <= S`;
-- BAD with bounds requires an interval wholly outside `[-S,S]`;
+- BAD/PROBE_EVIDENCE with bounds requires an interval wholly outside `[-S,S]`;
+- BAD/RECEIVER_WALL_STEP and BAD/SENDER_PROCESSING_LIMIT may omit bounds or carry an overlapping interval, because the verified wall step or processing overrun itself establishes BAD; present bounds MUST be paired, ordered, and not wholly GOOD;
 - UNKNOWN MUST NOT claim a fully GOOD interval;
 - a present probe ID refers to a valid receiver observation for this stream;
 - enum/reason/state combinations follow the normative clock-state registry.
 
-A verified `SENDER_PROCESSING_LIMIT` exceedance is deterministically BAD. Contradictory/out-of-policy state update is `CLOCK_CONTRACT_VIOLATION`; structurally malformed presence/ranges are `MALFORMED_FRAME`.
+Every probe-backed update, including `SENDER_PROCESSING_LIMIT`, is subject to the sender-observed probe-age expiry and remaining-lifetime clamp in the clock registry. Stale evidence establishes no new state and cannot clear an existing BAD/RECOVERING latch or restart UNKNOWN grace.
+
+A fresh verified `SENDER_PROCESSING_LIMIT` exceedance is deterministically BAD. Contradictory/out-of-policy state update is `CLOCK_CONTRACT_VIOLATION`; structurally malformed presence/ranges are `MALFORMED_FRAME`.
 
 ## 30. Clock policy, BAD latch, grace, recovery
 

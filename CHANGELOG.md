@@ -1,5 +1,13 @@
 # Changelog
 
+## Experimental reference and development review — 2026-09-19
+
+- Reconcile BAD interval exceptions in the canonical clock specification and apply freshness to processing-overrun observations.
+- Enforce LF for protobuf sources and verify fingerprints on a Windows autocrlf checkout.
+- Add a one-lane Core reference with a checksummed/fsynced sender WAL, TLS 1.3 gRPC, PostgreSQL commit-before-ACK, replay, fencing and bounded flow control.
+- Add actual SIGKILL/restart acceptance tests and isolated PostgreSQL CI.
+- Add local bootstrap/inspection/recovery commands and an offline PPLNS shadow comparison harness; document the remaining full-profile integration work.
+
 ## Admission and retained-audit hardening — 2026-09-05
 
 - Require durable all-history admission/commit checks before permission withdrawal, including membership end and previously ACKed/pruned events.

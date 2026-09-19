@@ -1,0 +1,7 @@
+# Reference/lab only; production integration has its own dependency lifecycle.
+grpclib==0.4.9
+grpcio-tools==1.84.0
+protobuf==7.36.2
+psycopg[binary]==3.3.6
+cryptography==50.0.1
+pytest==9.1.1
